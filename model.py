@@ -110,8 +110,8 @@ class MultiHeadAttentionBlock(nn.Module):
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
 
         # Create the scaling matrix
-         scaling_matrix = torch.ones((b_s, heas, se_en, se_en)).to(query.device)
-         scaling_matrix[:, :, torch.arange(se_en-1), torch.arange(1, se_en)] *= decay_factor
+        scaling_matrix = torch.ones((b_s, heas, se_en, se_en)).to(query.device)
+        scaling_matrix[:, :, torch.arange(se_en-1), torch.arange(1, se_en)] *= decay_factor
         
          # Apply the scaling matrix to the attention scores
         attention_scores *= scaling_matrix
