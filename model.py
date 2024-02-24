@@ -126,7 +126,7 @@ class MultiHeadAttentionBlock(nn.Module):
     #     # return attention scores which can be used for visualization
     #     return (attention_scores @ value), attention_scores
     
-     @staticmethod
+    @staticmethod
     def attention(query, key, value, mask, dropout: nn.Dropout):
         d_k = query.shape[-1]
         # Just apply the formula from the paper
