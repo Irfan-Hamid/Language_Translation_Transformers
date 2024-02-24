@@ -98,24 +98,23 @@ class MultiHeadAttentionBlock(nn.Module):
 
     @staticmethod
     def attention(query, key, value, mask, dropout: nn.Dropout):
+
+        decay_factor = 0.6
+
         d_k = query.shape[-1]
 
-
-        batch_size, heads, seq_len, _ = query.size()
-
-         
+        b_s, heas, se_en, _ = query.size()
         # Just apply the formula from the paper
         # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
+
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
 
-
         # Create the scaling matrix
-         scaling_matrix = torch.ones((batch_size, heads, seq_len, seq_len)).to(query.device)
-         scaling_matrix[:, :, torch.arange(seq_len-1), torch.arange(1, seq_len)] *= decay_factor
-
+         scaling_matrix = torch.ones((b_s, heas, se_en, se_en)).to(query.device)
+         scaling_matrix[:, :, torch.arange(se_en-1), torch.arange(1, se_en)] *= decay_factor
+        
          # Apply the scaling matrix to the attention scores
         attention_scores *= scaling_matrix
-
         
         if mask is not None:
             # Write a very low value (indicating -inf) to the positions where mask == 0
