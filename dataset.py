@@ -18,6 +18,12 @@ class BilingualDataset(Dataset):
         self.eos_token = torch.tensor([tokenizer_tgt.token_to_id("[EOS]")], dtype=torch.int64)
         self.pad_token = torch.tensor([tokenizer_tgt.token_to_id("[PAD]")], dtype=torch.int64)
 
+
+        self.use_causal_mask = True
+
+
+
+
     def __len__(self):
         return len(self.ds)
 
@@ -75,20 +81,31 @@ class BilingualDataset(Dataset):
         assert decoder_input.size(0) == self.seq_len
         assert label.size(0) == self.seq_len
 
+        # Determine which mask to use
+        if self.use_causal_mask:
+            decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).int() & causal_mask(decoder_input.size(0))
+        else:
+            decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).int() & causal_mask_with_future(decoder_input.size(0))
+
         return {
             "encoder_input": encoder_input,  # (seq_len)
             "decoder_input": decoder_input,  # (seq_len)
             "encoder_mask": (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int(), # (1, 1, seq_len)
             "decoder_mask": (decoder_input != self.pad_token).unsqueeze(0).int() & causal_mask(decoder_input.size(0)), # (1, seq_len) & (1, seq_len, seq_len),
+            "decoder_mask_with_future": (decoder_input != self.pad_token).unsqueeze(0).int() & causal_mask_with_future(decoder_input.size(0)), # (1, seq_len) & (1, seq_len, seq_len),
             "label": label,  # (seq_len)
             "src_text": src_text,
             "tgt_text": tgt_text,
-        }
-    
-# def causal_mask(size):
-#     mask = torch.triu(torch.ones((1, size, size)), diagonal=1).type(torch.int)
-#     return mask == 0
+        }   
+
+def switch_masks(self):
+        self.use_causal_mask = not self.use_causal_mask
 
 def causal_mask(size):
+    mask = torch.triu(torch.ones((1, size, size)), diagonal=1).type(torch.int)
+    return mask == 0
+
+def causal_mask_with_future(size):
     mask = torch.triu(torch.ones((1, size, size)), diagonal=2).type(torch.int)
     return mask == 0
+
