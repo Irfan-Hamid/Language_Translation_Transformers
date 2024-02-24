@@ -302,7 +302,7 @@ def train_model_whole(config):
         validate_train_model_whole(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
 
         # Save the model at the end of every epoch, indicating it's been trained with both causal masks
-        model_filename = get_weights_file_path(config, f"{epoch:02d}", "both_masks")
+        model_filename = get_weights_file_path(config, f"{epoch:02d}")
         torch.save({
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
