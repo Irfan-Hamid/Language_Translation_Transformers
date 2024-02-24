@@ -1,6 +1,7 @@
 from model import build_transformer
 from dataset import BilingualDataset, causal_mask
 from config import get_config, get_weights_file_path, latest_weights_file_path
+from dataset import causal_mask_with_future
 
 import torchtext.datasets as datasets
 import torch
@@ -77,7 +78,6 @@ def initial_greedy_decode(model, source, source_mask, tokenizer_tgt, max_len, de
         decoder_input = torch.cat(
             [decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1
         )
-
         if next_word == eos_idx:
             break
 
@@ -120,63 +120,179 @@ def double_greedy_decode(model, source, source_mask, tokenizer_tgt, max_len, dev
 
     return decoder_input.squeeze(0)
 
-def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+def validate_train_model(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
     model.eval()
     count = 0
 
     source_texts = []
     expected = []
-    # predicted = []
-    predicted_original = []  # Separate list for original predictions
-    predicted_future = []  # Separate list for future predictions
+    predicted_original = []
 
     try:
-        # get the console window width
         with os.popen('stty size', 'r') as console:
             _, console_width = console.read().split()
             console_width = int(console_width)
     except:
-        # If we can't get the console width, use 80 as default
         console_width = 80
 
     with torch.no_grad():
         for batch in validation_ds:
             count += 1
-            encoder_input = batch["encoder_input"].to(device) # (b, seq_len)
-            encoder_mask = batch["encoder_mask"].to(device) # (b, 1, 1, seq_len)
+            encoder_input = batch["encoder_input"].to(device)
+            encoder_mask = batch["encoder_mask"].to(device)
+            assert encoder_input.size(0) == 1, "Batch size must be 1 for validation"
 
-            # check that the batch size is 1
-            assert encoder_input.size(
-                0) == 1, "Batch size must be 1 for validation"
-
-            # model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_tgt, max_len, device)
             model_out_original = initial_greedy_decode(model, encoder_input, encoder_mask, tokenizer_tgt, max_len, device)
-            model_out_future = double_greedy_decode(model, encoder_input, encoder_mask, tokenizer_tgt, max_len, device)
-
 
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
-            # model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
             model_out_original_text = tokenizer_tgt.decode(model_out_original.detach().cpu().numpy())
-            model_out_future_text = tokenizer_tgt.decode(model_out_future.detach().cpu().numpy())
 
             source_texts.append(source_text)
             expected.append(target_text)
-            predicted_original.append(model_out_original_text)  # Append to original predictions list
-            predicted_future.append(model_out_future_text)  # Append to future predictions list
-            
-            
-            # Print the source, target and model output
+            predicted_original.append(model_out_original_text)
+
             print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
             print_msg(f"{f'TARGET: ':>12}{target_text}")
-            # print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
-            print_msg(f"{f'ORIGINAL PREDICTED: ':>12}{model_out_original_text}")
-            print_msg(f"{f'FUTURE PREDICTED: ':>12}{model_out_future_text}")
+            print_msg(f"{f'PREDICTED: ':>12}{model_out_original_text}")
 
             if count == num_examples:
                 print_msg('-'*console_width)
                 break
+
+    if writer:
+        metric = torchmetrics.CharErrorRate()
+        cer_original = metric(predicted_original, expected)
+        writer.add_scalar('validation cer original', cer_original, global_step)
+        writer.flush()
+
+        metric = torchmetrics.WordErrorRate()
+        wer_original = metric(predicted_original, expected)
+        writer.add_scalar('validation wer original', wer_original, global_step)
+        writer.flush()
+
+        metric = torchmetrics.BLEUScore()
+        bleu_original = metric(predicted_original, expected)
+        writer.add_scalar('validation BLEU original', bleu_original, global_step)
+        writer.flush()
+
+
+def validate_train_model_with_future(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+    model.eval()
+    count = 0
+
+    source_texts = []
+    expected = []
+    predicted_future = []
+
+    try:
+        with os.popen('stty size', 'r') as console:
+            _, console_width = console.read().split()
+            console_width = int(console_width)
+    except:
+        console_width = 80
+
+    with torch.no_grad():
+        for batch in validation_ds:
+            count += 1
+            encoder_input = batch["encoder_input"].to(device)
+            encoder_mask = batch["encoder_mask"].to(device)
+            assert encoder_input.size(0) == 1, "Batch size must be 1 for validation"
+
+            model_out_future = double_greedy_decode(model, encoder_input, encoder_mask, tokenizer_tgt, max_len, device)
+
+            source_text = batch["src_text"][0]
+            target_text = batch["tgt_text"][0]
+            model_out_future_text = tokenizer_tgt.decode(model_out_future.detach().cpu().numpy())
+
+            source_texts.append(source_text)
+            expected.append(target_text)
+            predicted_future.append(model_out_future_text)
+
+            print_msg('-'*console_width)
+            print_msg(f"{f'SOURCE: ':>12}{source_text}")
+            print_msg(f"{f'TARGET: ':>12}{target_text}")
+            print_msg(f"{f'PREDICTED: ':>12}{model_out_future_text}")
+
+            if count == num_examples:
+                print_msg('-'*console_width)
+                break
+
+    if writer:
+        metric = torchmetrics.CharErrorRate()
+        cer_future = metric(predicted_future, expected)
+        writer.add_scalar('validation cer future', cer_future, global_step)
+        writer.flush()
+
+        metric = torchmetrics.WordErrorRate()
+        wer_future = metric(predicted_future, expected)
+        writer.add_scalar('validation wer future', wer_future, global_step)
+        writer.flush()
+
+        metric = torchmetrics.BLEUScore()
+        bleu_future = metric(predicted_future, expected)
+        writer.add_scalar('validation BLEU future', bleu_future, global_step)
+        writer.flush()
+
+
+# def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+#     model.eval()
+#     count = 0
+
+#     source_texts = []
+#     expected = []
+#     # predicted = []
+#     predicted_original = []  # Separate list for original predictions
+#     predicted_future = []  # Separate list for future predictions
+
+#     try:
+#         # get the console window width
+#         with os.popen('stty size', 'r') as console:
+#             _, console_width = console.read().split()
+#             console_width = int(console_width)
+#     except:
+#         # If we can't get the console width, use 80 as default
+#         console_width = 80
+
+#     with torch.no_grad():
+#         for batch in validation_ds:
+#             count += 1
+#             encoder_input = batch["encoder_input"].to(device) # (b, seq_len)
+#             encoder_mask = batch["encoder_mask"].to(device) # (b, 1, 1, seq_len)
+
+#             # check that the batch size is 1
+#             assert encoder_input.size(
+#                 0) == 1, "Batch size must be 1 for validation"
+
+#             # model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_tgt, max_len, device)
+#             model_out_original = initial_greedy_decode(model, encoder_input, encoder_mask, tokenizer_tgt, max_len, device)
+#             model_out_future = double_greedy_decode(model, encoder_input, encoder_mask, tokenizer_tgt, max_len, device)
+
+
+#             source_text = batch["src_text"][0]
+#             target_text = batch["tgt_text"][0]
+#             # model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
+#             model_out_original_text = tokenizer_tgt.decode(model_out_original.detach().cpu().numpy())
+#             model_out_future_text = tokenizer_tgt.decode(model_out_future.detach().cpu().numpy())
+
+#             source_texts.append(source_text)
+#             expected.append(target_text)
+#             predicted_original.append(model_out_original_text)  # Append to original predictions list
+#             predicted_future.append(model_out_future_text)  # Append to future predictions list
+            
+            
+#             # Print the source, target and model output
+#             print_msg('-'*console_width)
+#             print_msg(f"{f'SOURCE: ':>12}{source_text}")
+#             print_msg(f"{f'TARGET: ':>12}{target_text}")
+#             # print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
+#             print_msg(f"{f'ORIGINAL PREDICTED: ':>12}{model_out_original_text}")
+#             print_msg(f"{f'FUTURE PREDICTED: ':>12}{model_out_future_text}")
+
+#             if count == num_examples:
+#                 print_msg('-'*console_width)
+#                 break
     
     # if writer:
     #     # Evaluate the character error rate
@@ -198,39 +314,39 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     #     writer.add_scalar('validation BLEU', bleu, global_step)
     #     writer.flush()
             
-    if writer:
-        # Evaluate the character error rate for original predictions
-        metric = torchmetrics.CharErrorRate()
-        cer_original = metric(predicted_original, expected)
-        writer.add_scalar('validation cer original', cer_original, global_step)
-        writer.flush()
+    # if writer:
+    #     # Evaluate the character error rate for original predictions
+    #     metric = torchmetrics.CharErrorRate()
+    #     cer_original = metric(predicted_original, expected)
+    #     writer.add_scalar('validation cer original', cer_original, global_step)
+    #     writer.flush()
 
-        # Evaluate the character error rate for future predictions
-        cer_future = metric(predicted_future, expected)
-        writer.add_scalar('validation cer future', cer_future, global_step)
-        writer.flush()
+    #     # Evaluate the character error rate for future predictions
+    #     cer_future = metric(predicted_future, expected)
+    #     writer.add_scalar('validation cer future', cer_future, global_step)
+    #     writer.flush()
 
-        # Compute the word error rate for original predictions
-        metric = torchmetrics.WordErrorRate()
-        wer_original = metric(predicted_original, expected)
-        writer.add_scalar('validation wer original', wer_original, global_step)
-        writer.flush()
+    #     # Compute the word error rate for original predictions
+    #     metric = torchmetrics.WordErrorRate()
+    #     wer_original = metric(predicted_original, expected)
+    #     writer.add_scalar('validation wer original', wer_original, global_step)
+    #     writer.flush()
 
-        # Compute the word error rate for future predictions
-        wer_future = metric(predicted_future, expected)
-        writer.add_scalar('validation wer future', wer_future, global_step)
-        writer.flush()
+    #     # Compute the word error rate for future predictions
+    #     wer_future = metric(predicted_future, expected)
+    #     writer.add_scalar('validation wer future', wer_future, global_step)
+    #     writer.flush()
 
-        # Compute the BLEU metric for original predictions
-        metric = torchmetrics.BLEUScore()
-        bleu_original = metric(predicted_original, expected)
-        writer.add_scalar('validation BLEU original', bleu_original, global_step)
-        writer.flush()
+    #     # Compute the BLEU metric for original predictions
+    #     metric = torchmetrics.BLEUScore()
+    #     bleu_original = metric(predicted_original, expected)
+    #     writer.add_scalar('validation BLEU original', bleu_original, global_step)
+    #     writer.flush()
 
-        # Compute the BLEU metric for future predictions
-        bleu_future = metric(predicted_future, expected)
-        writer.add_scalar('validation BLEU future', bleu_future, global_step)
-        writer.flush()        
+    #     # Compute the BLEU metric for future predictions
+    #     bleu_future = metric(predicted_future, expected)
+    #     writer.add_scalar('validation BLEU future', bleu_future, global_step)
+    #     writer.flush()        
 
 def get_all_sentences(ds, lang):
     for item in ds:
@@ -443,7 +559,7 @@ def train_model(config):
 
         # Run validation at the end of every epoch
         # run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
-
+        validate_train_model(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Save the model at the end of every epoch
         # model_filename = get_weights_file_path(config, f"{epoch:02d}")
         model_filename = get_weights_file_path(config, f"{epoch:02d}", "causal_mask")
@@ -538,8 +654,8 @@ def train_model_with_future(config):
             global_step += 1
 
 # Run validation at the end of every epoch
-        run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
-
+        # run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+        validate_train_model_with_future(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Save the model at the end of every epoch
         # model_filename = get_weights_file_path(config, f"{epoch:02d}")
         model_filename = get_weights_file_path(config, f"{epoch:02d}", "causal_mask_with_future")
