@@ -63,10 +63,9 @@ def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source
 
     return decoder_input.squeeze(0)
 
-
-
-def validate_train_model_whole(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
-    model.eval()
+def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+    model_causal_mask.eval()
+    model_causal_mask_with_future.eval()
     count = 0
 
     source_texts = []
@@ -123,7 +122,7 @@ def validate_train_model_whole(model, validation_ds, tokenizer_src, tokenizer_tg
         metric = torchmetrics.BLEUScore()
         bleu_whole = metric(predicted_whole, expected)
         writer.add_scalar('validation BLEU whole', bleu_whole, global_step)
-        writer.flush()  
+        writer.flush()
 
 
 def get_all_sentences(ds, lang):
@@ -283,9 +282,9 @@ def train_model_causal_mask(config,current_epoch, model, device):
             'global_step': global_step
         }, model_filename)
 
-    return model   
+    return model_causal_mask
 
-def train_model_causal_mask_with_future(config, current_epoch, model, device):
+def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask, model_causal_mask_with_future, device):
     config['experiment_name'] = "runs/tmodel_causal_mask_with_future"  # Unique experiment name for this model
     # Define the device
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -298,14 +297,14 @@ def train_model_causal_mask_with_future(config, current_epoch, model, device):
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
 
     # Only initialize a new model if one isn't provided
-    if model is None:
-        model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
-    
-    # model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    if model_causal_mask_with_future is None:
+        model_causal_mask_with_future = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+
+    # model_causal_mask = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
     # Tensorboard
     writer = SummaryWriter(f"{config['experiment_name']}_with_future")  # Modify experiment name
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'], eps=1e-9)
+    optimizer = torch.optim.Adam(model_causal_mask_with_future.parameters(), lr=config['lr'], eps=1e-9)
 
     # If the user specified a model to preload before training, load it
     initial_epoch = 0
@@ -315,7 +314,7 @@ def train_model_causal_mask_with_future(config, current_epoch, model, device):
     if model_filename:
         print(f'Preloading model {model_filename}')
         state = torch.load(model_filename)
-        model.load_state_dict(state['model_state_dict'])
+        model_causal_mask_with_future.load_state_dict(state['model_state_dict'])
         initial_epoch = state['epoch'] + 1
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_step = state['global_step']
@@ -334,9 +333,9 @@ def train_model_causal_mask_with_future(config, current_epoch, model, device):
         decoder_mask = batch['decoder_mask_with_future'].to(device)
 
         # Run the tensors through the encoder, decoder, and the projection layer
-        encoder_output = model.encode(encoder_input, encoder_mask)
-        decoder_output = model.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
-        proj_output = model.project(decoder_output)
+        encoder_output = model_causal_mask.encode(encoder_input, encoder_mask)
+        decoder_output = model_causal_mask.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
+        proj_output = model_causal_mask.project(decoder_output)
 
         # Compare the output with the label
         label = batch['label'].to(device)
@@ -359,18 +358,17 @@ def train_model_causal_mask_with_future(config, current_epoch, model, device):
         global_step += 1
 
         # Run validation after training for all epochs
-        validate_train_model_whole(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
-
+        validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Save the model after training for all epochs
         model_filename = get_weights_file_path(config, f"causal_mask_with_future_epoch_{epoch:02d}")
         torch.save({
             'epoch': epoch,
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': model_causal_mask_with_future.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'global_step': global_step
         }, model_filename)
 
-    return model
+    return model_causal_mask_with_future
 
 def alternate_training(config, num_epochs):
 
@@ -394,7 +392,7 @@ def alternate_training(config, num_epochs):
 
         # Train one epoch with causal mask and future context
         print(f"Training epoch {epoch+1} with causal mask and future context")
-        model_causal_mask_with_future = train_model_causal_mask_with_future(config, epoch, model_causal_mask_with_future, device)
+        model_causal_mask_with_future = train_model_causal_mask_with_future(config, epoch, model_causal_mask, model_causal_mask_with_future, device)
 
         print(f"Completed Epoch {epoch+1}/{num_epochs}")
 
