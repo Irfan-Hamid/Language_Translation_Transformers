@@ -390,11 +390,11 @@ def alternate_training(config, num_epochs):
 
         # Train one epoch with causal mask
         print(f"Training epoch {epoch+1} with causal mask")
-        model_causal_mask = train_model_causal_mask(config, epoch, model_causal_mask )
+        model_causal_mask = train_model_causal_mask(config, epoch, model_causal_mask, device )
 
         # Train one epoch with causal mask and future context
         print(f"Training epoch {epoch+1} with causal mask and future context")
-        model_causal_mask_with_future = train_model_causal_mask_with_future(config, epoch, model_causal_mask_with_future)
+        model_causal_mask_with_future = train_model_causal_mask_with_future(config, epoch, model_causal_mask_with_future. device)
 
         print(f"Completed Epoch {epoch+1}/{num_epochs}")
 
