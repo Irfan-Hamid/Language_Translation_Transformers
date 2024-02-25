@@ -87,7 +87,7 @@ def validate_train_model_whole(model, validation_ds, tokenizer_src, tokenizer_tg
             encoder_mask = batch["encoder_mask"].to(device)
             assert encoder_input.size(0) == 1, "Batch size must be 1 for validation"
 
-            model_out_whole = greedy_decode_whole(model, encoder_input, encoder_mask, tokenizer_tgt, max_len, device)
+            model_out_whole = greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, encoder_input, encoder_mask, tokenizer_tgt, max_len, device)
 
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
@@ -182,7 +182,7 @@ def get_model(config, vocab_src_len, vocab_tgt_len):
     model = build_transformer(vocab_src_len, vocab_tgt_len, config["seq_len"], config['seq_len'], d_model=config['d_model'])
     return model
 
-def train_model_causal_mask(config,current_epoch):
+def train_model_causal_mask(config,current_epoch, model, device):
     config['experiment_name'] = "runs/tmodel_causal_mask"  # Unique experiment name for this model
     # Define the device
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.has_mps or torch.backends.mps.is_available() else "cpu"
@@ -202,7 +202,14 @@ def train_model_causal_mask(config,current_epoch):
     Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+
+    # Only initialize a new model if one isn't provided
+    if model is None:
+        model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    
+    # model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+
+
     # Tensorboard
     writer = SummaryWriter(config['experiment_name'])
 
@@ -278,7 +285,7 @@ def train_model_causal_mask(config,current_epoch):
 
     return model   
 
-def train_model_causal_mask_with_future(config, current_epoch):
+def train_model_causal_mask_with_future(config, current_epoch, model, device):
     config['experiment_name'] = "runs/tmodel_causal_mask_with_future"  # Unique experiment name for this model
     # Define the device
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -289,7 +296,12 @@ def train_model_causal_mask_with_future(config, current_epoch):
     Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+
+    # Only initialize a new model if one isn't provided
+    if model is None:
+        model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    
+    # model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
     # Tensorboard
     writer = SummaryWriter(f"{config['experiment_name']}_with_future")  # Modify experiment name
 
@@ -361,21 +373,30 @@ def train_model_causal_mask_with_future(config, current_epoch):
     return model
 
 def alternate_training(config, num_epochs):
+
+    # Define the device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    # Get data loaders and tokenizers
+    train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
+
+    # Initialize models here before the loop
+    model_causal_mask = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    model_causal_mask_with_future = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    
     for epoch in range(num_epochs):
         print(f"Starting Epoch {epoch+1}/{num_epochs}")
 
         # Train one epoch with causal mask
         print(f"Training epoch {epoch+1} with causal mask")
-        train_model_causal_mask(config, epoch)
+        model_causal_mask = train_model_causal_mask(config, epoch, model_causal_mask )
 
         # Train one epoch with causal mask and future context
         print(f"Training epoch {epoch+1} with causal mask and future context")
-        train_model_causal_mask_with_future(config, epoch)
+        model_causal_mask_with_future = train_model_causal_mask_with_future(config, epoch, model_causal_mask_with_future)
 
         print(f"Completed Epoch {epoch+1}/{num_epochs}")
-
-
-
 
 if __name__ == '__main__':
     warnings.filterwarnings("ignore")
