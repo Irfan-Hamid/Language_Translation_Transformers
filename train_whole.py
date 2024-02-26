@@ -274,8 +274,8 @@ def train_model_causal_mask(config,current_epoch, model, device):
         # validate_train_model_whole(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
 
         # Save the model at the end of every epoch, indicating it's been trained with both causal masks
-        model_filename = get_weights_file_path(config, f"causal_mask_epoch_{epoch:02d}")
-        torch.save({
+    model_filename = get_weights_file_path(config, f"causal_mask_epoch_{epoch:02d}")
+    torch.save({
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
@@ -358,10 +358,10 @@ def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask
         global_step += 1
 
         # Run validation after training for all epochs
-        validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+    validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Save the model after training for all epochs
-        model_filename = get_weights_file_path(config, f"causal_mask_with_future_epoch_{epoch:02d}")
-        torch.save({
+    model_filename = get_weights_file_path(config, f"causal_mask_with_future_epoch_{epoch:02d}")
+    torch.save({
             'epoch': epoch,
             'model_state_dict': model_causal_mask_with_future.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
