@@ -282,7 +282,7 @@ def train_model_causal_mask(config,current_epoch, model, device):
             'global_step': global_step
         }, model_filename)
 
-    return model_causal_mask
+    return model
 
 def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask, model_causal_mask_with_future, device):
     config['experiment_name'] = "runs/tmodel_causal_mask_with_future"  # Unique experiment name for this model
