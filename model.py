@@ -126,12 +126,34 @@ class MultiHeadAttentionBlock(nn.Module):
     #     # return attention scores which can be used for visualization
     #     return (attention_scores @ value), attention_scores
     
+    # @staticmethod
+    # def attention(query, key, value, mask, dropout: nn.Dropout):
+    #     d_k = query.shape[-1]
+    #     # Just apply the formula from the paper
+    #     # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
+    #     attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
+    #     if mask is not None:
+    #         # Write a very low value (indicating -inf) to the positions where mask == 0
+    #         attention_scores.masked_fill_(mask == 0, -1e9)
+    #     attention_scores = attention_scores.softmax(dim=-1) # (batch, h, seq_len, seq_len) # Apply softmax
+    #     if dropout is not None:
+    #         attention_scores = dropout(attention_scores)
+    #     # (batch, h, seq_len, seq_len) --> (batch, h, seq_len, d_k)
+    #     # return attention scores which can be used for visualization
+    #     return (attention_scores @ value), attention_scores
+    
     @staticmethod
     def attention(query, key, value, mask, dropout: nn.Dropout):
+        gamma = 0.2
         d_k = query.shape[-1]
         # Just apply the formula from the paper
         # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
+        # Create the decay matrix
+        decay_matrix = torch.ones_like(attention_scores)
+        decay_matrix = decay_matrix.triu(diagonal=1) * (gamma - 1) + 1  # gamma above the diagonal, 1 on/ below the diagonal
+        # Apply the decay factor to the attention scores
+        attention_scores = attention_scores * decay_matrix
         if mask is not None:
             # Write a very low value (indicating -inf) to the positions where mask == 0
             attention_scores.masked_fill_(mask == 0, -1e9)
