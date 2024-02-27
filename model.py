@@ -96,55 +96,25 @@ class MultiHeadAttentionBlock(nn.Module):
         self.w_o = nn.Linear(d_model, d_model, bias=False) # Wo
         self.dropout = nn.Dropout(dropout)
 
-    # @staticmethod
-    # def attention(query, key, value, mask, dropout: nn.Dropout):
-
-    #     decay_factor = 0.6
-
-    #     d_k = query.shape[-1]
-
-    #     b_s, heas, se_en, _ = query.size()
-    #     # Just apply the formula from the paper
-    #     # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
-
-    #     attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
-
-    #     # Create the scaling matrix
-    #     scaling_matrix = torch.ones((b_s, heas, se_en, se_en)).to(query.device)
-    #     scaling_matrix[:, :, torch.arange(se_en-1), torch.arange(1, se_en)] *= decay_factor
-        
-    #      # Apply the scaling matrix to the attention scores
-    #     attention_scores *= scaling_matrix
-        
-    #     if mask is not None:
-    #         # Write a very low value (indicating -inf) to the positions where mask == 0
-    #         attention_scores.masked_fill_(mask == 0, -1e9)
-    #     attention_scores = attention_scores.softmax(dim=-1) # (batch, h, seq_len, seq_len) # Apply softmax
-    #     if dropout is not None:
-    #         attention_scores = dropout(attention_scores)
-    #     # (batch, h, seq_len, seq_len) --> (batch, h, seq_len, d_k)
-    #     # return attention scores which can be used for visualization
-    #     return (attention_scores @ value), attention_scores
-    
-    # @staticmethod
-    # def attention(query, key, value, mask, dropout: nn.Dropout):
-    #     d_k = query.shape[-1]
-    #     # Just apply the formula from the paper
-    #     # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
-    #     attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
-    #     if mask is not None:
-    #         # Write a very low value (indicating -inf) to the positions where mask == 0
-    #         attention_scores.masked_fill_(mask == 0, -1e9)
-    #     attention_scores = attention_scores.softmax(dim=-1) # (batch, h, seq_len, seq_len) # Apply softmax
-    #     if dropout is not None:
-    #         attention_scores = dropout(attention_scores)
-    #     # (batch, h, seq_len, seq_len) --> (batch, h, seq_len, d_k)
-    #     # return attention scores which can be used for visualization
-    #     return (attention_scores @ value), attention_scores
+    @staticmethod
+    def attention_encoder(query, key, value, mask, dropout: nn.Dropout):
+        d_k = query.shape[-1]
+        # Just apply the formula from the paper
+        # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
+        attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
+        if mask is not None:
+            # Write a very low value (indicating -inf) to the positions where mask == 0
+            attention_scores.masked_fill_(mask == 0, -1e9)
+        attention_scores = attention_scores.softmax(dim=-1) # (batch, h, seq_len, seq_len) # Apply softmax
+        if dropout is not None:
+            attention_scores = dropout(attention_scores)
+        # (batch, h, seq_len, seq_len) --> (batch, h, seq_len, d_k)
+        # return attention scores which can be used for visualization
+        return (attention_scores @ value), attention_scores
     
     @staticmethod
-    def attention(query, key, value, mask, dropout: nn.Dropout):
-        gamma = 0.95
+    def attention_decoder(query, key, value, mask, dropout: nn.Dropout):
+        gamma = 0.1
         d_k = query.shape[-1]
         # Just apply the formula from the paper
         # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
@@ -164,7 +134,7 @@ class MultiHeadAttentionBlock(nn.Module):
         # return attention scores which can be used for visualization
         return (attention_scores @ value), attention_scores
 
-    def forward(self, q, k, v, mask):
+    def forward_encoder(self, q, k, v, mask):
         query = self.w_q(q) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
         key = self.w_k(k) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
         value = self.w_v(v) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
@@ -175,7 +145,28 @@ class MultiHeadAttentionBlock(nn.Module):
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
 
         # Calculate attention
-        x, self.attention_scores = MultiHeadAttentionBlock.attention(query, key, value, mask, self.dropout)
+        x, self.attention_scores = MultiHeadAttentionBlock.attention_encoder(query, key, value, mask, self.dropout)
+        
+        # Combine all the heads together
+        # (batch, h, seq_len, d_k) --> (batch, seq_len, h, d_k) --> (batch, seq_len, d_model)
+        x = x.transpose(1, 2).contiguous().view(x.shape[0], -1, self.h * self.d_k)
+
+        # Multiply by Wo
+        # (batch, seq_len, d_model) --> (batch, seq_len, d_model)  
+        return self.w_o(x)
+    
+    def forward_decoder(self, q, k, v, mask):
+        query = self.w_q(q) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
+        key = self.w_k(k) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
+        value = self.w_v(v) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
+
+        # (batch, seq_len, d_model) --> (batch, seq_len, h, d_k) --> (batch, h, seq_len, d_k)
+        query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
+        key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
+        value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
+
+        # Calculate attention
+        x, self.attention_scores = MultiHeadAttentionBlock.attention_decoder(query, key, value, mask, self.dropout)
         
         # Combine all the heads together
         # (batch, h, seq_len, d_k) --> (batch, seq_len, h, d_k) --> (batch, seq_len, d_model)
@@ -194,7 +185,7 @@ class EncoderBlock(nn.Module):
         self.residual_connections = nn.ModuleList([ResidualConnection(features, dropout) for _ in range(2)])
 
     def forward(self, x, src_mask):
-        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, src_mask))
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block.forward_encoder(x, x, x, src_mask))
         x = self.residual_connections[1](x, self.feed_forward_block)
         return x
     
@@ -220,8 +211,8 @@ class DecoderBlock(nn.Module):
         self.residual_connections = nn.ModuleList([ResidualConnection(features, dropout) for _ in range(3)])
 
     def forward(self, x, encoder_output, src_mask, tgt_mask):
-        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, tgt_mask))
-        x = self.residual_connections[1](x, lambda x: self.cross_attention_block(x, encoder_output, encoder_output, src_mask))
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block.forward_decoder(x, x, x, tgt_mask))
+        x = self.residual_connections[1](x, lambda x: self.cross_attention_block.forward_decoder(x, encoder_output, encoder_output, src_mask))
         x = self.residual_connections[2](x, self.feed_forward_block)
         return x
     
