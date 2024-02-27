@@ -144,7 +144,7 @@ class MultiHeadAttentionBlock(nn.Module):
     
     @staticmethod
     def attention(query, key, value, mask, dropout: nn.Dropout):
-        gamma = 0.2
+        gamma = 0.95
         d_k = query.shape[-1]
         # Just apply the formula from the paper
         # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
