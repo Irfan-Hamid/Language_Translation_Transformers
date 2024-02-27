@@ -150,7 +150,7 @@ def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source
         # Step 2: Refine the previous token using the new token as future context with model_causal_mask_with_future
         if decoder_input.size(1) > 2:  # Ensure there's at least one token to refine
             # Use the last two tokens (previous token and the new token) for refinement
-            refinement_segment = decoder_input[:, -2:]
+            refinement_segment = decoder_input
             refinement_mask = causal_mask_with_future(refinement_segment.size(1)).type_as(source_mask).to(device)
             refinement_out = model_causal_mask_with_future.decode(encoder_output, source_mask, refinement_segment, refinement_mask)
             refinement_prob = model_causal_mask_with_future.project(refinement_out[:, -2])  # Get probabilities for the token before the last
@@ -433,7 +433,7 @@ def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask
 
         # Run the tensors through the encoder, decoder, and the projection layer
         encoder_output = model_causal_mask_with_future.encode(encoder_input, encoder_mask)
-        decoder_output = model_causal_mask_with_future.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
+        decoder_output = train_model_causal_mask_with_future.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
         proj_output = model_causal_mask.project(decoder_output)
 
         # Compare the output with the label
