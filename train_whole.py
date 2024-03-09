@@ -433,7 +433,7 @@ def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask
 
         # Run the tensors through the encoder, decoder, and the projection layer
         encoder_output = model_causal_mask_with_future.encode(encoder_input, encoder_mask)
-        decoder_output = train_model_causal_mask_with_future.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
+        decoder_output = model_causal_mask_with_future.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
         proj_output = model_causal_mask.project(decoder_output)
 
         # Compare the output with the label
