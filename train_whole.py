@@ -123,6 +123,44 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
+# def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
+#     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
+#     eos_idx = tokenizer_tgt.token_to_id('[EOS]')
+
+#     # Initialize the decoder input with the SOS token
+#     decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(source).to(device)
+
+#     # Precompute the encoder output to reuse it for every step
+#     encoder_output = model_causal_mask.encode(source, source_mask)
+
+#     while decoder_input.size(1) < max_len:
+#         # Step 1: Extend the sequence using causal mask with model_causal_mask
+#         decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
+#         out = model_causal_mask.decode(encoder_output, source_mask, decoder_input, decoder_mask)
+#         prob = model_causal_mask.project(out[:, -1])
+#         _, next_word = torch.max(prob, dim=1)
+
+#         if next_word.item() == eos_idx:
+#             decoder_input = torch.cat([decoder_input, next_word.unsqueeze(0)], dim=1)
+#             break
+
+#         # Add the new token to the sequence using your suggested concatenation method
+#         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1)
+
+#         # Step 2: Refine the previous token using the new token as future context with model_causal_mask_with_future
+#         if decoder_input.size(1) > 2:  # Ensure there's at least one token to refine
+#             # Use the last two tokens (previous token and the new token) for refinement
+#             refinement_segment = decoder_input
+#             refinement_mask = causal_mask_with_future(refinement_segment.size(1)).type_as(source_mask).to(device)
+#             refinement_out = model_causal_mask_with_future.decode(encoder_output, source_mask, refinement_segment, refinement_mask)
+#             refinement_prob = model_causal_mask_with_future.project(refinement_out[:, -2])  # Get probabilities for the token before the last
+#             _, refined_word = torch.max(refinement_prob, dim=1)
+
+#             # Update the second last token with the refined prediction
+#             decoder_input[:, -2] = refined_word
+
+#     return decoder_input.squeeze(0)
+        
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
     eos_idx = tokenizer_tgt.token_to_id('[EOS]')
@@ -133,8 +171,8 @@ def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source
     # Precompute the encoder output to reuse it for every step
     encoder_output = model_causal_mask.encode(source, source_mask)
 
-    while decoder_input.size(1) < max_len:
-        # Step 1: Extend the sequence using causal mask with model_causal_mask
+    # Generate the full sequence using model_causal_mask
+    for _ in range(max_len - 1):
         decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
         out = model_causal_mask.decode(encoder_output, source_mask, decoder_input, decoder_mask)
         prob = model_causal_mask.project(out[:, -1])
@@ -144,20 +182,17 @@ def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source
             decoder_input = torch.cat([decoder_input, next_word.unsqueeze(0)], dim=1)
             break
 
-        # Add the new token to the sequence using your suggested concatenation method
         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1)
 
-        # Step 2: Refine the previous token using the new token as future context with model_causal_mask_with_future
-        if decoder_input.size(1) > 2:  # Ensure there's at least one token to refine
-            # Use the last two tokens (previous token and the new token) for refinement
-            refinement_segment = decoder_input
-            refinement_mask = causal_mask_with_future(refinement_segment.size(1)).type_as(source_mask).to(device)
-            refinement_out = model_causal_mask_with_future.decode(encoder_output, source_mask, refinement_segment, refinement_mask)
-            refinement_prob = model_causal_mask_with_future.project(refinement_out[:, -2])  # Get probabilities for the token before the last
-            _, refined_word = torch.max(refinement_prob, dim=1)
+    # Refinement step using model_causal_mask_with_future for each token except the last one
+    for i in range(1, decoder_input.size(1) - 1):
+        refinement_segment = decoder_input[:, :i+2]  # Select up to the next token for refinement
+        refinement_mask = causal_mask_with_future(refinement_segment.size(1)).type_as(source_mask).to(device)
+        refinement_out = model_causal_mask_with_future.decode(encoder_output, source_mask, refinement_segment, refinement_mask)
+        refinement_prob = model_causal_mask_with_future.project(refinement_out[:, -2])  # Get probabilities for the token before the last
+        _, refined_word = torch.max(refinement_prob, dim=1)
 
-            # Update the second last token with the refined prediction
-            decoder_input[:, -2] = refined_word
+        decoder_input[:, i] = refined_word  # Update the current token with the refined prediction
 
     return decoder_input.squeeze(0)
 
