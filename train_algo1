@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim.lr_scheduler import LambdaLR
 import nltk
+import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.nist_score import corpus_nist
 from nltk.translate.meteor_score import meteor_score
@@ -189,7 +190,7 @@ def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source
 
         # Add the new token to the sequence using your suggested concatenation method
         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1)
-        
+
         if next_word.item() == eos_idx:
             decoder_input = torch.cat([decoder_input, next_word.unsqueeze(0)], dim=1)
             break
@@ -606,19 +607,21 @@ def alternate_training(config, num_epochs):
         losses_causal_mask_with_future.append(loss_causal_mask_with_future)
 
         print(f"Completed Epoch {epoch+1}/{num_epochs}")
-        # Plotting the losses
-        plt.figure(figsize=(10, 6))
-        plt.plot(range(1, num_epochs + 1), losses_causal_mask, label='Causal Mask')
-        plt.plot(range(1, num_epochs + 1), losses_causal_mask_with_future, label='Causal Mask with Future')
-        plt.xlabel('Epochs')
-        plt.ylabel('Average Loss')
-        plt.title('Average Loss vs. Epochs')
-        plt.legend()
-        plt.show()
+
+    return losses_causal_mask, losses_causal_mask_with_future
 
 if __name__ == '__main__':
     warnings.filterwarnings("ignore")
     config = get_config()
     num_epochs = config['num_epochs']
-    alternate_training(config, num_epochs)
+    losses_causal_mask, losses_causal_mask_with_future = alternate_training(config, num_epochs)
+    # Plotting the losses
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, num_epochs + 1), losses_causal_mask, label='Causal Mask')
+    plt.plot(range(1, num_epochs + 1), losses_causal_mask_with_future, label='Causal Mask with Future')
+    plt.xlabel('Epochs')
+    plt.ylabel('Average Loss')
+    plt.title('Average Loss vs. Epochs')
+    plt.legend()
+    plt.show()
 
