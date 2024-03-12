@@ -149,7 +149,8 @@ class MultiHeadAttentionBlock(nn.Module):
         idx = torch.arange(seq_len - 1, device=query.device)
         attention_scores[:, :, idx, idx + 1] *= alpha
         # For elements on and above the second diagonal above the main diagonal, multiply by gamma
-        gamma_mask = torch.triu(torch.ones_like(attention_scores), diagonal=2)
+        # For elements on and above the second diagonal above the main diagonal, multiply by gamma
+        gamma_mask = torch.triu(torch.ones_like(attention_scores), diagonal=2).bool()
         attention_scores = attention_scores * gamma_mask * gamma + attention_scores * (~gamma_mask)
         if mask is not None:
             # Write a very low value (indicating -inf) to the positions where mask == 0

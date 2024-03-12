@@ -294,12 +294,20 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         writer.add_scalar('validation wer whole', wer_whole, global_step)
         writer.flush()
 
-        # Compute the BLEU metric for predictions using greedy_decode_whole
-        metric = torchmetrics.BLEUScore()
-        bleu_whole = metric(predicted_whole, expected)
-        writer.add_scalar('validation BLEU whole', bleu_whole, global_step)
+        # Compute the BLEU metric
+        bleu = calculate_bleu(predicted_whole, expected)
+        writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
+         # Calculate NIST score
+        nist = calculate_nist(predicted_whole, expected)
+        writer.add_scalar('validation NIST', nist, global_step)
+        writer.flush()
+
+        # Calculate METEOR score
+        meteor = calculate_meteor(predicted_whole, expected)
+        writer.add_scalar('validation METEOR', meteor, global_step)
+        writer.flush()
 
 def get_all_sentences(ds, lang):
     for item in ds:
