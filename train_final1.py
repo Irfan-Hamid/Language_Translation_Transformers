@@ -12,6 +12,7 @@ import nltk
 from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.nist_score import corpus_nist
 from nltk.translate.meteor_score import meteor_score
+from nltk.translate.bleu_score import SmoothingFunction
 
 nltk.download('wordnet')
 nltk.download('wordnet_ic')
@@ -68,8 +69,11 @@ def calculate_bleu(predicted, expected):
     predicted_tokens = [prediction.split() for prediction in predicted]
     expected_tokens = [[reference.split()] for reference in expected]
 
-    # Calculate BLEU score
-    bleu_score = corpus_bleu(expected_tokens, predicted_tokens)
+    # Create a smoothing function
+    chencherry = SmoothingFunction()
+
+    # Calculate BLEU score with smoothing
+    bleu_score = corpus_bleu(expected_tokens, predicted_tokens, smoothing_function=chencherry.method1)
 
     return bleu_score
 
@@ -156,15 +160,15 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
-         # Calculate NIST score
-        nist = calculate_nist(predicted, expected)
-        writer.add_scalar('validation NIST', nist, global_step)
-        writer.flush()
+        #  # Calculate NIST score
+        # nist = calculate_nist(predicted, expected)
+        # writer.add_scalar('validation NIST', nist, global_step)
+        # writer.flush()
 
-        # Calculate METEOR score
-        meteor = calculate_meteor(predicted, expected)
-        writer.add_scalar('validation METEOR', meteor, global_step)
-        writer.flush()
+        # # Calculate METEOR score
+        # meteor = calculate_meteor(predicted, expected)
+        # writer.add_scalar('validation METEOR', meteor, global_step)
+        # writer.flush()
 
 # def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
 #     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -299,15 +303,15 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
-         # Calculate NIST score
-        nist = calculate_nist(predicted_whole, expected)
-        writer.add_scalar('validation NIST', nist, global_step)
-        writer.flush()
+        #  # Calculate NIST score
+        # nist = calculate_nist(predicted_whole, expected)
+        # writer.add_scalar('validation NIST', nist, global_step)
+        # writer.flush()
 
-        # Calculate METEOR score
-        meteor = calculate_meteor(predicted_whole, expected)
-        writer.add_scalar('validation METEOR', meteor, global_step)
-        writer.flush()
+        # # Calculate METEOR score
+        # meteor = calculate_meteor(predicted_whole, expected)
+        # writer.add_scalar('validation METEOR', meteor, global_step)
+        # writer.flush()
 
 def get_all_sentences(ds, lang):
     for item in ds:
