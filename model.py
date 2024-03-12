@@ -147,9 +147,11 @@ class MultiHeadAttentionBlock(nn.Module):
     # Initialize the decay matrix with ones
         decay_matrix = torch.ones(seq_len, seq_len, device=query.device)
     # Apply alpha to the first diagonal above the main diagonal
-        decay_matrix.fill_diagonal_(1, offset=1, wrap=False).mul_(alpha)
+        for i in range(seq_len - 1):
+            decay_matrix[i, i + 1] = alpha
     # Apply gamma to the second diagonal above the main diagonal
-        decay_matrix.fill_diagonal_(1, offset=2, wrap=False).mul_(gamma)
+        for i in range(seq_len - 2):
+            decay_matrix[i, i + 2] = gamma
     # Broadcasting decay_matrix to match attention_scores dimensions
         decay_matrix = decay_matrix.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len] for broadcasting
         decay_matrix = decay_matrix.expand(batch_size, num_heads, seq_len, seq_len)  # Match the dimensions of attention_scores
