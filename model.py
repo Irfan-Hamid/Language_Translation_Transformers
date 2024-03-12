@@ -141,7 +141,7 @@ class MultiHeadAttentionBlock(nn.Module):
         alpha = 0.02
         gamma = 0.02
         d_k = query.shape[-1]
-        size = query.size(-2)  # Using -2 assuming [batch_size, num_heads, seq_len, depth]
+        size = query.shape[-2]  # Using -2 assuming [batch_size, num_heads, seq_len, depth]
 
     # Compute initial attention scores
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
@@ -159,7 +159,6 @@ class MultiHeadAttentionBlock(nn.Module):
 
     # Broadcasting decay_matrix to match attention_scores dimensions
         decay_matrix = decay_matrix.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len] for broadcasting
-        decay_matrix = decay_matrix.expand_as(attention_scores)  # Expand decay_matrix to match attention_scores
         attention_scores = attention_scores * decay_matrix
 
     # Apply masking if provided
