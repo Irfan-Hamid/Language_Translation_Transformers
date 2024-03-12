@@ -144,18 +144,17 @@ class MultiHeadAttentionBlock(nn.Module):
         batch_size, num_heads, seq_len, _ = query.size()
     # Compute initial attention scores
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
-    # Initialize the decay matrix with ones
-        decay_matrix = torch.ones(seq_len, seq_len, device=query.device)
+    # Initialize the decay matrix with 1s for elements on and below the main diagonal
+        decay_matrix = torch.ones_like(attention_scores)
     # Apply alpha to the first diagonal above the main diagonal
-        for i in range(seq_len - 1):
-            decay_matrix[i, i + 1] = alpha
-    # Apply gamma to the second diagonal above the main diagonal
-        for i in range(seq_len - 2):
-            decay_matrix[i, i + 2] = gamma
-    # Broadcasting decay_matrix to match attention_scores dimensions
-        decay_matrix = decay_matrix.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len] for broadcasting
-        decay_matrix = decay_matrix.expand(batch_size, num_heads, seq_len, seq_len)  # Match the dimensions of attention_scores
-        attention_scores = attention_scores * decay_matrix
+        idx = torch.arange(seq_len - 1, device=query.device)
+        decay_matrix[:, :, idx, idx + 1] = alpha
+    # Apply gamma to the elements on and above the second diagonal above the main diagonal
+    # This is done by creating a mask where these elements are True
+        gamma_mask = torch.triu(torch.ones(seq_len, seq_len, device=query.device), diagonal=2) == 1
+        decay_matrix[:, :, gamma_mask] = gamma
+    # Apply the decay matrix to the attention scores
+        attention_scores *= decay_matrix
         if mask is not None:
             # Write a very low value (indicating -inf) to the positions where mask == 0
             attention_scores.masked_fill_(mask == 0, -1e9)
