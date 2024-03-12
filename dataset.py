@@ -105,7 +105,11 @@ def causal_mask(size):
     mask = torch.triu(torch.ones((1, size, size)), diagonal=1).type(torch.int)
     return mask == 0
 
+# def causal_mask_with_future(size):
+#     mask = torch.triu(torch.ones((1, size, size)), diagonal=2).type(torch.int)
+#     return mask == 0
+
 def causal_mask_with_future(size):
-    mask = torch.triu(torch.ones((1, size, size)), diagonal=2).type(torch.int)
+    mask = torch.triu(torch.ones((1, size, size)), diagonal=3).type(torch.int)
     return mask == 0
 
