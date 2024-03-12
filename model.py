@@ -159,6 +159,7 @@ class MultiHeadAttentionBlock(nn.Module):
 
     # Broadcasting decay_matrix to match attention_scores dimensions
         decay_matrix = decay_matrix.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len] for broadcasting
+        decay_matrix = decay_matrix.expand_as(attention_scores)  # Expand decay_matrix to match attention_scores
         attention_scores = attention_scores * decay_matrix
 
     # Apply masking if provided
