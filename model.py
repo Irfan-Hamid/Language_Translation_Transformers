@@ -115,7 +115,7 @@ class MultiHeadAttentionBlock(nn.Module):
         # return attention scores which can be used for visualization
         return (attention_scores @ value), attention_scores
     
-    @staticmethod
+    # @staticmethod
     # def attention_decoder(query, key, value, mask, dropout: nn.Dropout):
     #     gamma = 0.1
     #     d_k = query.shape[-1]
@@ -136,46 +136,33 @@ class MultiHeadAttentionBlock(nn.Module):
     #     # (batch, h, seq_len, seq_len) --> (batch, h, seq_len, d_k)
     #     # return attention scores which can be used for visualization
     #     return (attention_scores @ value), attention_scores
-
-    def attention_decoder(query, key, value, mask=None, dropout=None):
+    @staticmethod
+    def attention_decoder(query, key, value, mask, dropout: nn.Dropout):
         alpha = 0.02
         gamma = 0.02
         d_k = query.shape[-1]
-        size = query.shape[-2]  # Using -2 assuming [batch_size, num_heads, seq_len, depth]
-
+        batch_size, num_heads, seq_len, _ = query.size()
     # Compute initial attention scores
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
-
     # Initialize the decay matrix with ones
-        decay_matrix = torch.ones(size, size, device=query.device)
-
+        decay_matrix = torch.ones(seq_len, seq_len, device=query.device)
     # Apply alpha to the first diagonal above the main diagonal
-        for i in range(size - 1):
-            decay_matrix[i, i + 1] = alpha
-
+        decay_matrix.fill_diagonal_(1, offset=1, wrap=False).mul_(alpha)
     # Apply gamma to the second diagonal above the main diagonal
-        for i in range(size - 2):
-            decay_matrix[i, i + 2] = gamma
-
+        decay_matrix.fill_diagonal_(1, offset=2, wrap=False).mul_(gamma)
     # Broadcasting decay_matrix to match attention_scores dimensions
         decay_matrix = decay_matrix.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len] for broadcasting
+        decay_matrix = decay_matrix.expand(batch_size, num_heads, seq_len, seq_len)  # Match the dimensions of attention_scores
         attention_scores = attention_scores * decay_matrix
-
-    # Apply masking if provided
         if mask is not None:
-            attention_scores = attention_scores.masked_fill(mask == 0, -1e9)
-
-    # Apply softmax to get the final attention probabilities
-        attention_scores = attention_scores.softmax(dim=-1)
-
-    # Apply dropout if provided
+            # Write a very low value (indicating -inf) to the positions where mask == 0
+            attention_scores.masked_fill_(mask == 0, -1e9)
+        attention_scores = attention_scores.softmax(dim=-1) # (batch, h, seq_len, seq_len) # Apply softmax
         if dropout is not None:
             attention_scores = dropout(attention_scores)
-
-    # Compute the final output by multiplying with value vector
-        output = attention_scores @ value
-
-        return output, attention_scores
+        # (batch, h, seq_len, seq_len) --> (batch, h, seq_len, d_k)
+        # return attention scores which can be used for visualization
+        return (attention_scores @ value), attention_scores
 
     # @staticmethod
     # def attention_decoder(query, key, value, mask, dropout: nn.Dropout, gamma):
