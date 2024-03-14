@@ -154,7 +154,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
             source_texts.append(source_text)
-            expected.append(target_text)
+            expected.append(target_text.split())
             predicted.append(model_out_text)
             
             # Print the source, target and model output
@@ -182,8 +182,14 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.flush()
 
         # Compute the BLEU metric
-        bleu = calculate_bleu(predicted, expected)
+        metric = torchmetrics.BLEUScore()
+        bleu = metric(predicted, expected)
         writer.add_scalar('validation BLEU', bleu, global_step)
+        writer.flush()
+
+        # Compute the BLEU metric
+        bleu_custom = calculate_bleu(predicted, expected)
+        writer.add_scalar('validation BLEU', bleu_custom, global_step)
         writer.flush()
 
         # # Compute the WER
@@ -314,7 +320,7 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy())
 
             source_texts.append(source_text)
-            expected.append(target_text)
+            expected.append(target_text.split())
             predicted_whole.append(model_out_whole_text)
 
             print_msg('-'*console_width)
@@ -340,8 +346,14 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         writer.flush()
 
         # Compute the BLEU metric
-        bleu = calculate_bleu(predicted_whole, expected)
+        metric = torchmetrics.BLEUScore()
+        bleu = metric(predicted_whole, expected)
         writer.add_scalar('validation BLEU', bleu, global_step)
+        writer.flush()
+
+        # Compute the BLEU metric
+        bleu_custom = calculate_bleu(predicted_whole, expected)
+        writer.add_scalar('validation BLEU', bleu_custom, global_step)
         writer.flush()
 
         # wer_custom = calculate_wer(predicted_whole, expected)
