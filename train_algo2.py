@@ -555,7 +555,7 @@ def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask
 
     # model_causal_mask = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
     # Tensorboard
-    writer = SummaryWriter(f"{config['experiment_name']}_with_future")  # Modify experiment name
+    writer = SummaryWriter(config['experiment_name'])  # Modify experiment name
 
     optimizer = torch.optim.Adam(model_causal_mask_with_future.parameters(), lr=config['lr'], eps=1e-9)
 
