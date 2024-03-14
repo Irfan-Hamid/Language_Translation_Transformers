@@ -12,10 +12,11 @@ import nltk
 import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.nist_score import corpus_nist
+from torchmetrics import BLEUScore
 # from nltk.translate.meteor_score import meteor_score
 from nltk.translate.bleu_score import SmoothingFunction
 import jiwer
-from torchmetrics.functional import bleu_score, char_error_rate, word_error_rate
+from torchmetrics.functional import char_error_rate, word_error_rate
 
 
 nltk.download('wordnet')
@@ -126,11 +127,10 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     model.eval()
     count = 0
 
+    bleu_metric = BLEUScore()
+
     all_predicted_texts = []  # For CER and WER
     all_expected_texts = []  # For CER and WER
-
-    all_predicted_tokens = []  # Tokenized predictions for BLEU
-    all_expected_tokens = []  # Tokenized references for BLEU
 
     try:
         # get the console window width
@@ -158,16 +158,12 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
+            # Update BLEU score metric
+            bleu_metric.update(model_out_text, [target_text])
+
             # For CER and WER calculations
             all_predicted_texts.append(model_out_text)
             all_expected_texts.append(target_text)
-
-            # Tokenize for BLEU score calculation
-            predicted_tokens = tokenizer_tgt.encode(model_out_text).tokens
-            expected_tokens = tokenizer_tgt.encode(target_text).tokens
-
-            all_predicted_tokens.append(predicted_tokens)
-            all_expected_tokens.append([expected_tokens])  # Note the double list for a single reference
 
             # Print the source, target, and model output
             print_msg('-'*console_width)
@@ -179,11 +175,12 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
                 print_msg('-'*console_width)
                 break
 
-        # Calculate metrics
-       
-        bleu = bleu_score(all_predicted_tokens, all_expected_tokens)
+         # Calculate BLEU score
+        bleu = bleu_metric.compute()
+
+        # Calculate CER and WER
         cer = char_error_rate(all_predicted_texts, all_expected_texts)
-        wer = word_error_rate(all_predicted_texts, all_expected_texts) 
+        wer = word_error_rate(all_predicted_texts, all_expected_texts)
 
         if writer:
             writer.add_scalar('Validation/BLEU', bleu, global_step)
@@ -192,6 +189,8 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             writer.flush()
 
         print_msg(f"Validation Metrics - BLEU: {bleu}, CER: {cer}, WER: {wer}")
+
+       
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -271,11 +270,10 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
     model_causal_mask_with_future.eval()
     count = 0
 
+    bleu_metric = BLEUScore()
+
     all_predicted_texts_whole = []  # For CER and WER
     all_expected_texts = []  # For CER and WER
-
-    all_predicted_tokens_whole = []  # Tokenized predictions for BLEU
-    all_expected_tokens = []  # Tokenized references for BLEU
 
     try:
         with os.popen('stty size', 'r') as console:
@@ -297,16 +295,12 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             target_text = batch["tgt_text"][0]
             model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy())
 
+            # Update BLEU score metric
+            bleu_metric.update(model_out_whole_text, [target_text])
+
             # For CER and WER calculations
-            all_predicted_texts_whole.append(model_out_text)
+            all_predicted_texts_whole.append(model_out_whole_text)
             all_expected_texts.append(target_text)
-
-            # Tokenize for BLEU score calculation
-            predicted_tokens = tokenizer_tgt.encode(model_out_whole_text).tokens
-            expected_tokens = tokenizer_tgt.encode(target_text).tokens
-
-            all_predicted_tokens_whole.append(predicted_tokens)
-            all_expected_tokens.append([expected_tokens])  # Note the double list for a single reference
             
 
             print_msg('-'*console_width)
@@ -317,9 +311,10 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             if count == num_examples:
                 print_msg('-'*console_width)
                 break
+        
+        # Calculate BLEU score
+        bleu = bleu_metric.compute()
 
-        # Calculate metrics
-        bleu = bleu_score(all_predicted_tokens_whole, all_expected_tokens)
         cer = char_error_rate(all_predicted_texts_whole, all_expected_texts)
         wer = word_error_rate(all_predicted_texts_whole, all_expected_texts) 
 
