@@ -154,9 +154,11 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
             source_texts.append(source_text)
-            expected.append(target_text.split())
+
+            source_texts.append(source_text)
+            expected.append(target_text)
             predicted.append(model_out_text)
-            
+          
             # Print the source, target and model output
             print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
@@ -168,29 +170,32 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
                 break
     
     if writer:
-        # Evaluate the character error rate
-        # Compute the char error rate 
-        metric = torchmetrics.CharErrorRate()
-        cer = metric(predicted, expected)
+
+        # Tokenize predicted and expected sentences
+        predicted_tokenized = [nltk.word_tokenize(sentence) for sentence in predicted]
+        expected_tokenized = [nltk.word_tokenize(sentence) for sentence in expected]
+
+        # Compute CER
+        cer_metric = torchmetrics.CharErrorRate()
+        cer = cer_metric(predicted, expected)
         writer.add_scalar('validation cer', cer, global_step)
         writer.flush()
 
-        # Compute the word error rate
-        metric = torchmetrics.WordErrorRate()
-        wer = metric(predicted, expected)
+        # Compute WER
+        wer_metric = torchmetrics.WordErrorRate()
+        wer = wer_metric(predicted, expected)
         writer.add_scalar('validation wer', wer, global_step)
         writer.flush()
 
-        # Compute the BLEU metric
-        metric = torchmetrics.BLEUScore()
-        bleu = metric(predicted, expected)
-        writer.add_scalar('validation BLEU', bleu, global_step)
+        # BLEU score calculation
+        bleu_score = corpus_bleu([[reference] for reference in expected_tokenized], predicted_tokenized)
+        writer.add_scalar('validation bleu_score', bleu_score, global_step)
         writer.flush()
 
-        # Compute the BLEU metric
-        bleu_custom = calculate_bleu(predicted, expected)
-        writer.add_scalar('validation BLEU', bleu_custom, global_step)
-        writer.flush()
+        # # Compute the BLEU metric
+        # bleu_custom = calculate_bleu(predicted, expected)
+        # writer.add_scalar('validation BLEU', bleu_custom, global_step)
+        # writer.flush()
 
         # # Compute the WER
         # wer_custom = calculate_wer(predicted, expected)
@@ -203,9 +208,9 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         # writer.flush()
 
         # Compute the NIST score using the custom function
-        nist_score = calculate_nist(predicted, expected)
-        writer.add_scalar('validation NIST', nist_score, global_step)
-        writer.flush()
+        # nist_score = calculate_nist(predicted, expected)
+        # writer.add_scalar('validation NIST', nist_score, global_step)
+        # writer.flush()
 
         #  # Calculate NIST score
         # nist = calculate_nist(predicted, expected)
@@ -320,7 +325,7 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy())
 
             source_texts.append(source_text)
-            expected.append(target_text.split())
+            expected.append(target_text)
             predicted_whole.append(model_out_whole_text)
 
             print_msg('-'*console_width)
@@ -333,28 +338,31 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
                 break
 
     if writer:
-        # Evaluate the character error rate for predictions using greedy_decode_whole
-        metric = torchmetrics.CharErrorRate()
-        cer_whole = metric(predicted_whole, expected)
-        writer.add_scalar('validation cer whole', cer_whole, global_step)
+    # Tokenize predicted and expected sentences
+        predicted_whole_tokenized = [nltk.word_tokenize(sentence) for sentence in predicted_whole]
+        expected_tokenized = [nltk.word_tokenize(sentence) for sentence in expected]
+
+    # Compute CER
+        cer_metric = torchmetrics.CharErrorRate()
+        cer = cer_metric(predicted_whole, expected)
+        writer.add_scalar('validation cer', cer, global_step)
         writer.flush()
 
-        # Compute the word error rate for predictions using greedy_decode_whole
-        metric = torchmetrics.WordErrorRate()
-        wer_whole = metric(predicted_whole, expected)
-        writer.add_scalar('validation wer whole', wer_whole, global_step)
+    # Compute WER
+        wer_metric = torchmetrics.WordErrorRate()
+        wer = wer_metric(predicted_whole, expected)
+        writer.add_scalar('validation wer', wer, global_step)
         writer.flush()
 
-        # Compute the BLEU metric
-        metric = torchmetrics.BLEUScore()
-        bleu = metric(predicted_whole, expected)
-        writer.add_scalar('validation BLEU', bleu, global_step)
+        # BLEU score calculation
+        bleu_score = corpus_bleu([[reference] for reference in expected_tokenized], predicted_whole_tokenized)
+        writer.add_scalar('validation bleu_score', bleu_score, global_step)
         writer.flush()
 
-        # Compute the BLEU metric
-        bleu_custom = calculate_bleu(predicted_whole, expected)
-        writer.add_scalar('validation BLEU', bleu_custom, global_step)
-        writer.flush()
+        # # Compute the BLEU metric
+        # bleu_custom = calculate_bleu(predicted_whole, expected)
+        # writer.add_scalar('validation BLEU', bleu_custom, global_step)
+        # writer.flush()
 
         # wer_custom = calculate_wer(predicted_whole, expected)
         # writer.add_scalar('validation WER Custom', wer_custom, global_step)
@@ -366,9 +374,9 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         # writer.flush()
 
         # Compute the NIST score using the custom function
-        nist_score = calculate_nist(predicted_whole, expected)
-        writer.add_scalar('validation NIST', nist_score, global_step)
-        writer.flush()
+        # nist_score = calculate_nist(predicted_whole, expected)
+        # writer.add_scalar('validation NIST', nist_score, global_step)
+        # writer.flush()
 
         #  # Calculate NIST score
         # nist = calculate_nist(predicted_whole, expected)
