@@ -155,7 +155,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
-            model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True)
+            model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
             source_texts.append(source_text)
             expected_texts.append(target_text)
@@ -186,6 +186,9 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         bleu_metric = torchmetrics.BLEUScore()
         bleu = bleu_metric(predicted_bleu_hyps, expected_bleu_refs)
         writer.add_scalar('validation BLEU', bleu, global_step)
+
+        bleu_custom= calculate_bleu(predicted_bleu_hyps, expected_bleu_refs)
+        writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
 
         writer.flush()
 
@@ -292,7 +295,7 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
 
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
-            model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy(),skip_special_tokens=True )
+            model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy())
 
 
             source_texts.append(source_text)
@@ -324,6 +327,9 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         bleu_metric = torchmetrics.BLEUScore()
         bleu = bleu_metric(predicted_bleu_whole_hyps, expected_bleu_refs)
         writer.add_scalar('validation BLEU', bleu, global_step)
+
+        bleu_custom = calculate_bleu(predicted_bleu_whole_hyps, expected_bleu_refs)
+        writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
 
         writer.flush()
 
