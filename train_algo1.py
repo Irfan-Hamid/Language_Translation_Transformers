@@ -299,13 +299,13 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
 
            # Convert texts to token lists for BLEU score calculation
             target_text_tokens = tokenizer_tgt.encode(target_text).tokens
-            model_out_text_tokens = tokenizer_tgt.encode(model_out_text).tokens
+            model_out_text_tokens = tokenizer_tgt.encode(model_out_whole_text).tokens
 
             source_texts.append(source_text)
             expected_tokens.append([target_text_tokens])  # Note: expected is a list of list of tokens for BLEU
             expected_texts.append(target_text)  # Full text for CER and WER
             predicted_whole_tokens.append(model_out_text_tokens)  # Token list for BLEU, variable name changed
-            predicted_whole_texts.append(model_out_text)  # Full text for CER and WER, variable name changed
+            predicted_whole_texts.append(model_out_whole_text)  # Full text for CER and WER, variable name changed
 
             print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
