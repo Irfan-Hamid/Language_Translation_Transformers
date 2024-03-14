@@ -100,13 +100,12 @@ def calculate_wer(predicted, expected):
         jiwer.Strip(),
         jiwer.RemovePunctuation(),
     ])
-    # Apply transformation and ensure no empty predictions
-    transformed_predicted = [transformation(p) if transformation(p) != '' else '[unknown]' for p in predicted]
 
-    # Use transformed_predicted here
-    wer = jiwer.wer(expected, transformed_predicted, truth_transform=transformation, hypothesis_transform=transformation)
+    transformed_predicted = [transformation(p).split() if transformation(p) != '' else ['[unknown]'] for p in predicted]
+    transformed_expected = [transformation(e).split() for e in expected]
+
+    wer = jiwer.wer(transformed_expected, transformed_predicted)
     return wer
-
 
 def calculate_cer(predicted, expected):
     transformation = jiwer.Compose([
@@ -115,11 +114,13 @@ def calculate_cer(predicted, expected):
         jiwer.Strip(),
         jiwer.RemovePunctuation(),
     ])
-    # Transform predicted texts and replace empty strings with a placeholder
-    transformed_predicted = [transformation(p) if transformation(p) != '' else '[unknown]' for p in predicted]
-    # Calculate CER using transformed predictions
-    cer = jiwer.cer(expected, transformed_predicted, truth_transform=transformation, hypothesis_transform=transformation)
+
+    transformed_predicted = [transformation(p).replace(' ', '') if transformation(p) != '' else '[unknown]' for p in predicted]
+    transformed_expected = [transformation(e).replace(' ', '') for e in expected]
+
+    cer = jiwer.cer(transformed_expected, transformed_predicted)
     return cer
+
 
 def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
     model.eval()
