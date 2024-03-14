@@ -125,8 +125,10 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     count = 0
 
     source_texts = []
-    expected = []
-    predicted = []
+    expected_tokens = []  # To store token lists for BLEU
+    expected_texts = []  # To store full texts for CER and WER
+    predicted_tokens = [] # To store token lists for BLEU
+    predicted_texts = []  # To store full texts for CER and WER
 
     try:
         # get the console window width
@@ -149,17 +151,22 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
 
             model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_tgt, max_len, device)
 
+        
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
-            source_texts.append(source_text)
+            # Convert texts to token lists for BLEU score calculation
+            target_text_tokens = tokenizer_tgt.encode(target_text).tokens
+            model_out_text_tokens = tokenizer_tgt.encode(model_out_text).tokens
 
             source_texts.append(source_text)
-            expected.append(target_text)
-            predicted.append(model_out_text)
-          
-            # Print the source, target and model output
+            expected_tokens.append([target_text_tokens])  # Note: expected is a list of list of tokens for BLEU
+            expected_texts.append(target_text)  # Full text for CER and WER
+            predicted_tokens.append(model_out_text_tokens)  # Token list for BLEU
+            predicted_texts.append(model_out_text)  # Full text for CER and WER
+
+            # Print the source, target, and model output
             print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
             print_msg(f"{f'TARGET: ':>12}{target_text}")
@@ -168,59 +175,23 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             if count == num_examples:
                 print_msg('-'*console_width)
                 break
-    
     if writer:
-
-        # Tokenize predicted and expected sentences
-        predicted_tokenized = [nltk.word_tokenize(sentence) for sentence in predicted]
-        expected_tokenized = [nltk.word_tokenize(sentence) for sentence in expected]
-
-        # Compute CER
+        # Compute the CER
         cer_metric = torchmetrics.CharErrorRate()
-        cer = cer_metric(predicted, expected)
-        writer.add_scalar('validation cer', cer, global_step)
-        writer.flush()
+        cer = cer_metric(predicted_texts, expected_texts)
+        writer.add_scalar('validation CER', cer, global_step)
 
-        # Compute WER
+        # Compute the WER
         wer_metric = torchmetrics.WordErrorRate()
-        wer = wer_metric(predicted, expected)
-        writer.add_scalar('validation wer', wer, global_step)
-        writer.flush()
+        wer = wer_metric(predicted_texts, expected_texts)
+        writer.add_scalar('validation WER', wer, global_step)
 
-        # BLEU score calculation
-        bleu_score = corpus_bleu([[reference] for reference in expected_tokenized], predicted_tokenized)
-        writer.add_scalar('validation bleu_score', bleu_score, global_step)
-        writer.flush()
+        # Compute the BLEU metric
+        bleu_metric = torchmetrics.BLEUScore()
+        bleu = bleu_metric(predicted_tokens, expected_tokens)  # Note: expected_tokens and predicted_tokens are used for BLEU
+        writer.add_scalar('validation BLEU', bleu, global_step)
 
-        # # Compute the BLEU metric
-        # bleu_custom = calculate_bleu(predicted, expected)
-        # writer.add_scalar('validation BLEU', bleu_custom, global_step)
-        # writer.flush()
-
-        # # Compute the WER
-        # wer_custom = calculate_wer(predicted, expected)
-        # writer.add_scalar('validation WER Custom', wer_custom, global_step)
-        # writer.flush()
-
-        # # Compute the CER
-        # cer_custom = calculate_cer(predicted, expected)
-        # writer.add_scalar('validation CER Custom', cer_custom, global_step)
-        # writer.flush()
-
-        # Compute the NIST score using the custom function
-        # nist_score = calculate_nist(predicted, expected)
-        # writer.add_scalar('validation NIST', nist_score, global_step)
-        # writer.flush()
-
-        #  # Calculate NIST score
-        # nist = calculate_nist(predicted, expected)
-        # writer.add_scalar('validation NIST', nist, global_step)
-        # writer.flush()
-
-        # # Calculate METEOR score
-        # meteor = calculate_meteor(predicted, expected)
-        # writer.add_scalar('validation METEOR', meteor, global_step)
-        # writer.flush()
+        writer.flush() 
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -301,8 +272,10 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
     count = 0
 
     source_texts = []
-    expected = []
-    predicted_whole = []  # Predictions using greedy_decode_whole
+    expected_tokens = []  # To store token lists for BLEU
+    expected_texts = []  # To store full texts for CER and WER
+    predicted_whole_tokens = []  # To store token lists for BLEU, renamed from predicted_tokens
+    predicted_whole_texts = []  # To store full texts for CER and WER, renamed from predicted_texts
 
     try:
         with os.popen('stty size', 'r') as console:
@@ -324,9 +297,15 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             target_text = batch["tgt_text"][0]
             model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy())
 
+           # Convert texts to token lists for BLEU score calculation
+            target_text_tokens = tokenizer_tgt.encode(target_text).tokens
+            model_out_text_tokens = tokenizer_tgt.encode(model_out_text).tokens
+
             source_texts.append(source_text)
-            expected.append(target_text)
-            predicted_whole.append(model_out_whole_text)
+            expected_tokens.append([target_text_tokens])  # Note: expected is a list of list of tokens for BLEU
+            expected_texts.append(target_text)  # Full text for CER and WER
+            predicted_whole_tokens.append(model_out_text_tokens)  # Token list for BLEU, variable name changed
+            predicted_whole_texts.append(model_out_text)  # Full text for CER and WER, variable name changed
 
             print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
@@ -337,56 +316,23 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
                 print_msg('-'*console_width)
                 break
 
-    if writer:
-    # Tokenize predicted and expected sentences
-        predicted_whole_tokenized = [nltk.word_tokenize(sentence) for sentence in predicted_whole]
-        expected_tokenized = [nltk.word_tokenize(sentence) for sentence in expected]
+        if writer:
+        # Compute the CER
+            cer_metric = torchmetrics.CharErrorRate()
+            cer = cer_metric(predicted_whole_texts, expected_texts)
+            writer.add_scalar('validation CER - future context', cer, global_step)
 
-    # Compute CER
-        cer_metric = torchmetrics.CharErrorRate()
-        cer = cer_metric(predicted_whole, expected)
-        writer.add_scalar('validation cer', cer, global_step)
-        writer.flush()
+        # Compute the WER
+            wer_metric = torchmetrics.WordErrorRate()
+            wer = wer_metric(predicted_whole_texts, expected_texts)
+            writer.add_scalar('validation WER - future context', wer, global_step)
 
-    # Compute WER
-        wer_metric = torchmetrics.WordErrorRate()
-        wer = wer_metric(predicted_whole, expected)
-        writer.add_scalar('validation wer', wer, global_step)
-        writer.flush()
+        # Compute the BLEU metric
+            bleu_metric = torchmetrics.BLEUScore()
+            bleu = bleu_metric(predicted_whole_tokens, expected_tokens)  # Note: expected_tokens and predicted_whole_tokens are used for BLEU
+            writer.add_scalar('validation BLEU - future context', bleu, global_step)
 
-        # BLEU score calculation
-        bleu_score = corpus_bleu([[reference] for reference in expected_tokenized], predicted_whole_tokenized)
-        writer.add_scalar('validation bleu_score', bleu_score, global_step)
-        writer.flush()
-
-        # # Compute the BLEU metric
-        # bleu_custom = calculate_bleu(predicted_whole, expected)
-        # writer.add_scalar('validation BLEU', bleu_custom, global_step)
-        # writer.flush()
-
-        # wer_custom = calculate_wer(predicted_whole, expected)
-        # writer.add_scalar('validation WER Custom', wer_custom, global_step)
-        # writer.flush()
-
-        # # Compute the CER
-        # cer_custom = calculate_cer(predicted_whole, expected)
-        # writer.add_scalar('validation CER Custom', cer_custom, global_step)
-        # writer.flush()
-
-        # Compute the NIST score using the custom function
-        # nist_score = calculate_nist(predicted_whole, expected)
-        # writer.add_scalar('validation NIST', nist_score, global_step)
-        # writer.flush()
-
-        #  # Calculate NIST score
-        # nist = calculate_nist(predicted_whole, expected)
-        # writer.add_scalar('validation NIST', nist, global_step)
-        # writer.flush()
-
-        # # Calculate METEOR score
-        # meteor = calculate_meteor(predicted_whole, expected)
-        # writer.add_scalar('validation METEOR', meteor, global_step)
-        # writer.flush()
+            writer.flush()
 
 def get_all_sentences(ds, lang):
     for item in ds:
