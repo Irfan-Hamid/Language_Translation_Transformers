@@ -316,23 +316,23 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
                 print_msg('-'*console_width)
                 break
 
-        if writer:
+    if writer:
         # Compute the CER
-            cer_metric = torchmetrics.CharErrorRate()
-            cer = cer_metric(predicted_whole_texts, expected_texts)
-            writer.add_scalar('validation CER - future context', cer, global_step)
+        cer_metric = torchmetrics.CharErrorRate()
+        cer = cer_metric(predicted_whole_texts, expected_texts)
+        writer.add_scalar('validation CER - future context', cer, global_step)
 
         # Compute the WER
-            wer_metric = torchmetrics.WordErrorRate()
-            wer = wer_metric(predicted_whole_texts, expected_texts)
-            writer.add_scalar('validation WER - future context', wer, global_step)
+        wer_metric = torchmetrics.WordErrorRate()
+        wer = wer_metric(predicted_whole_texts, expected_texts)
+        writer.add_scalar('validation WER - future context', wer, global_step)
 
         # Compute the BLEU metric
-            bleu_metric = torchmetrics.BLEUScore()
-            bleu = bleu_metric(predicted_whole_tokens, expected_tokens)  # Note: expected_tokens and predicted_whole_tokens are used for BLEU
-            writer.add_scalar('validation BLEU - future context', bleu, global_step)
+        bleu_metric = torchmetrics.BLEUScore()
+        bleu = bleu_metric(predicted_whole_tokens, expected_tokens)  # Note: expected_tokens and predicted_whole_tokens are used for BLEU
+        writer.add_scalar('validation BLEU - future context', bleu, global_step)
 
-            writer.flush()
+        writer.flush()
 
 def get_all_sentences(ds, lang):
     for item in ds:
