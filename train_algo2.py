@@ -188,14 +188,14 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
-        wer_custom = calculate_wer(predicted, expected)
-        writer.add_scalar('validation WER Custom', wer_custom, global_step)
-        writer.flush()
+        # wer_custom = calculate_wer(predicted, expected)
+        # writer.add_scalar('validation WER Custom', wer_custom, global_step)
+        # writer.flush()
 
-        # Compute the CER
-        cer_custom = calculate_cer(predicted, expected)
-        writer.add_scalar('validation CER Custom', cer_custom, global_step)
-        writer.flush()
+        # # Compute the CER
+        # cer_custom = calculate_cer(predicted, expected)
+        # writer.add_scalar('validation CER Custom', cer_custom, global_step)
+        # writer.flush()
 
         # Compute the NIST score using the custom function
         nist_score = calculate_nist(predicted, expected)
@@ -345,14 +345,14 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
-        wer_custom = calculate_wer(predicted_whole, expected)
-        writer.add_scalar('validation WER Custom', wer_custom, global_step)
-        writer.flush()
+        # wer_custom = calculate_wer(predicted_whole, expected)
+        # writer.add_scalar('validation WER Custom', wer_custom, global_step)
+        # writer.flush()
 
-        # Compute the CER
-        cer_custom = calculate_cer(predicted_whole, expected)
-        writer.add_scalar('validation CER Custom', cer_custom, global_step)
-        writer.flush()
+        # # Compute the CER
+        # cer_custom = calculate_cer(predicted_whole, expected)
+        # writer.add_scalar('validation CER Custom', cer_custom, global_step)
+        # writer.flush()
 
         # Compute the NIST score using the custom function
         nist_score = calculate_nist(predicted_whole, expected)
