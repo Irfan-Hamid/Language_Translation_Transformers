@@ -161,8 +161,10 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             expected_texts.append(target_text)
             predicted_texts.append(model_out_text)
 
-            expected_bleu_refs.append([target_text.split()])  # Tokenize reference text
-            predicted_bleu_hyps.append(model_out_text.split())  # Tokenize predicted text
+            #expected_bleu_refs.append([target_text.split()])  # Tokenize reference text
+            #predicted_bleu_hyps.append(model_out_text.split())  # Tokenize predicted text
+            expected_bleu_refs.append([target_text])  
+            predicted_bleu_hyps.append(model_out_text)
 
             print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
