@@ -15,6 +15,8 @@ from nltk.translate.nist_score import corpus_nist
 # from nltk.translate.meteor_score import meteor_score
 from nltk.translate.bleu_score import SmoothingFunction
 import jiwer
+from torchmetrics.functional.text import rouge_score, meteor_score, gleu_score, chrf_score
+
 
 nltk.download('wordnet')
 nltk.download('wordnet_ic')
@@ -194,29 +196,19 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         # writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
         # writer.flush()
 
-         # Instantiate additional metrics
-        rouge_metric = torchmetrics.ROUGEMetric()
-        meteor_metric = torchmetrics.METEOR()
-        gleu_metric = torchmetrics.GLEU()
-        chrf_metric = torchmetrics.CHRF()
+         # Compute additional metrics
+        rouge_score_val = rouge_score(predicted_texts, expected_texts)
+        meteor_score_val = meteor_score(predicted_texts, expected_texts)
+        gleu_score_val = gleu_score(predicted_texts, expected_texts)
+        chrf_score_val = chrf_score(predicted_texts, expected_texts)
 
-        # Compute additional metrics
-        rouge = rouge_metric(predicted_texts, expected_texts)
-        writer.add_scalar('validation ROUGE', rouge, global_step)
+        # Log additional metrics
+        writer.add_scalar('validation ROUGE', rouge_score_val, global_step)
+        writer.add_scalar('validation METEOR', meteor_score_val, global_step)
+        writer.add_scalar('validation GLEU', gleu_score_val, global_step)
+        writer.add_scalar('validation CHRf', chrf_score_val, global_step)
+
         writer.flush()
-
-        meteor = meteor_metric(predicted_texts, expected_texts)
-        writer.add_scalar('validation METEOR', meteor, global_step)
-        writer.flush()
-
-        gleu = gleu_metric(predicted_texts, expected_texts)
-        writer.add_scalar('validation GLEU', gleu, global_step)
-        writer.flush()
-
-        chrf = chrf_metric(predicted_texts, expected_texts)
-        writer.add_scalar('validation CHRf', chrf, global_step)
-        writer.flush()
-
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -362,26 +354,18 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         # writer.flush()
 
         # Instantiate additional metrics
-        rouge_metric = torchmetrics.ROUGEMetric()
-        meteor_metric = torchmetrics.METEOR()
-        gleu_metric = torchmetrics.GLEU()
-        chrf_metric = torchmetrics.CHRF()
+        # Compute additional metrics
+        rouge_score_val = rouge_score(predicted_texts_whole, expected_texts)
+        meteor_score_val = meteor_score(predicted_texts_whole, expected_texts)
+        gleu_score_val = gleu_score(predicted_texts_whole, expected_texts)
+        chrf_score_val = chrf_score(predicted_texts_whole, expected_texts)
 
-       # Compute additional metrics
-        rouge = rouge_metric(predicted_texts_whole, expected_texts)
-        writer.add_scalar('validation ROUGE', rouge, global_step)
-        writer.flush()
+        # Log additional metrics
+        writer.add_scalar('validation ROUGE', rouge_score_val, global_step)
+        writer.add_scalar('validation METEOR', meteor_score_val, global_step)
+        writer.add_scalar('validation GLEU', gleu_score_val, global_step)
+        writer.add_scalar('validation CHRf', chrf_score_val, global_step)
 
-        meteor = meteor_metric(predicted_texts_whole, expected_texts)
-        writer.add_scalar('validation METEOR', meteor, global_step)
-        writer.flush()
-
-        gleu = gleu_metric(predicted_texts_whole, expected_texts)
-        writer.add_scalar('validation GLEU', gleu, global_step)
-        writer.flush()
-
-        chrf = chrf_metric(predicted_texts_whole, expected_texts)
-        writer.add_scalar('validation CHRf', chrf, global_step)
         writer.flush()
 
 def get_all_sentences(ds, lang):
