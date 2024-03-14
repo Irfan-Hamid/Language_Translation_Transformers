@@ -190,9 +190,9 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
-        bleu_custom= calculate_bleu(predicted_bleu_hyps, expected_bleu_refs)
-        writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
-        writer.flush()
+        # bleu_custom= calculate_bleu(predicted_bleu_hyps, expected_bleu_refs)
+        # writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
+        # writer.flush()
 
          # Instantiate additional metrics
         rouge_metric = torchmetrics.ROUGEMetric()
@@ -357,9 +357,9 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
 
-        bleu_custom = calculate_bleu(predicted_bleu_whole_hyps, expected_bleu_refs)
-        writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
-        writer.flush()
+        # bleu_custom = calculate_bleu(predicted_bleu_whole_hyps, expected_bleu_refs)
+        # writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
+        # writer.flush()
 
         # Instantiate additional metrics
         rouge_metric = torchmetrics.ROUGEMetric()
