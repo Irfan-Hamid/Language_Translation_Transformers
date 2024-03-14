@@ -12,7 +12,7 @@ import nltk
 import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.nist_score import corpus_nist
-from nltk.translate.meteor_score import meteor_score
+# from nltk.translate.meteor_score import meteor_score
 from nltk.translate.bleu_score import SmoothingFunction
 import jiwer
 
