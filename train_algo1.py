@@ -15,7 +15,7 @@ from nltk.translate.nist_score import corpus_nist
 # from nltk.translate.meteor_score import meteor_score
 from nltk.translate.bleu_score import SmoothingFunction
 import jiwer
-from torchmetrics.functional.text import rouge_score, meteor_score, gleu_score, chrf_score
+from torchmetrics.functional import bleu_score, char_error_rate, word_error_rate
 
 
 nltk.download('wordnet')
@@ -180,6 +180,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
                 break
 
         # Calculate metrics
+       
         bleu = bleu_score(all_predicted_tokens, all_expected_tokens)
         cer = char_error_rate(all_predicted_texts, all_expected_texts)
         wer = word_error_rate(all_predicted_texts, all_expected_texts) 
@@ -191,8 +192,6 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             writer.flush()
 
         print_msg(f"Validation Metrics - BLEU: {bleu}, CER: {cer}, WER: {wer}")
-
-       
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
