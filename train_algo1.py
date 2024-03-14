@@ -178,19 +178,45 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         cer_metric = torchmetrics.CharErrorRate()
         cer = cer_metric(predicted_texts, expected_texts)
         writer.add_scalar('validation CER', cer, global_step)
+        writer.flush()
 
         wer_metric = torchmetrics.WordErrorRate()
         wer = wer_metric(predicted_texts, expected_texts)
         writer.add_scalar('validation WER', wer, global_step)
+        writer.flush()
 
         bleu_metric = torchmetrics.BLEUScore()
         bleu = bleu_metric(predicted_bleu_hyps, expected_bleu_refs)
         writer.add_scalar('validation BLEU', bleu, global_step)
+        writer.flush()
 
         bleu_custom= calculate_bleu(predicted_bleu_hyps, expected_bleu_refs)
         writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
-
         writer.flush()
+
+         # Instantiate additional metrics
+        rouge_metric = torchmetrics.ROUGEMetric()
+        meteor_metric = torchmetrics.METEOR()
+        gleu_metric = torchmetrics.GLEU()
+        chrf_metric = torchmetrics.CHRF()
+
+        # Compute additional metrics
+        rouge = rouge_metric(predicted_texts, expected_texts)
+        writer.add_scalar('validation ROUGE', rouge, global_step)
+        writer.flush()
+
+        meteor = meteor_metric(predicted_texts, expected_texts)
+        writer.add_scalar('validation METEOR', meteor, global_step)
+        writer.flush()
+
+        gleu = gleu_metric(predicted_texts, expected_texts)
+        writer.add_scalar('validation GLEU', gleu, global_step)
+        writer.flush()
+
+        chrf = chrf_metric(predicted_texts, expected_texts)
+        writer.add_scalar('validation CHRf', chrf, global_step)
+        writer.flush()
+
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -319,18 +345,43 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         cer_metric = torchmetrics.CharErrorRate()
         cer = cer_metric(predicted_texts_whole, expected_texts)
         writer.add_scalar('validation CER', cer, global_step)
-
+        writer.flush()
+        
         wer_metric = torchmetrics.WordErrorRate()
         wer = wer_metric(predicted_texts_whole, expected_texts)
         writer.add_scalar('validation WER', wer, global_step)
+        writer.flush()
 
         bleu_metric = torchmetrics.BLEUScore()
         bleu = bleu_metric(predicted_bleu_whole_hyps, expected_bleu_refs)
         writer.add_scalar('validation BLEU', bleu, global_step)
+        writer.flush()
 
         bleu_custom = calculate_bleu(predicted_bleu_whole_hyps, expected_bleu_refs)
         writer.add_scalar('validation BLEU-custom', bleu_custom, global_step)
+        writer.flush()
 
+        # Instantiate additional metrics
+        rouge_metric = torchmetrics.ROUGEMetric()
+        meteor_metric = torchmetrics.METEOR()
+        gleu_metric = torchmetrics.GLEU()
+        chrf_metric = torchmetrics.CHRF()
+
+       # Compute additional metrics
+        rouge = rouge_metric(predicted_texts_whole, expected_texts)
+        writer.add_scalar('validation ROUGE', rouge, global_step)
+        writer.flush()
+
+        meteor = meteor_metric(predicted_texts_whole, expected_texts)
+        writer.add_scalar('validation METEOR', meteor, global_step)
+        writer.flush()
+
+        gleu = gleu_metric(predicted_texts_whole, expected_texts)
+        writer.add_scalar('validation GLEU', gleu, global_step)
+        writer.flush()
+
+        chrf = chrf_metric(predicted_texts_whole, expected_texts)
+        writer.add_scalar('validation CHRf', chrf, global_step)
         writer.flush()
 
 def get_all_sentences(ds, lang):
