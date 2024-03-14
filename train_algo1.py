@@ -125,10 +125,11 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     count = 0
 
     source_texts = []
-    expected_tokens = []  # To store token lists for BLEU
-    expected_texts = []  # To store full texts for CER and WER
-    predicted_tokens = [] # To store token lists for BLEU
-    predicted_texts = []  # To store full texts for CER and WER
+    expected_texts = []  # For CER and WER
+    predicted_texts = []  # For CER and WER
+
+    expected_bleu_refs = []  # For BLEU
+    predicted_bleu_hyps = []  # For BLEU
 
     try:
         # get the console window width
@@ -156,15 +157,13 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
-            # Convert texts to token lists for BLEU score calculation
-            target_text_tokens = tokenizer_tgt.encode(target_text).tokens
-            model_out_text_tokens = tokenizer_tgt.encode(model_out_text).tokens
-
             source_texts.append(source_text)
-            expected_tokens.append([target_text_tokens])  # Note: expected is a list of list of tokens for BLEU
-            expected_texts.append(target_text)  # Full text for CER and WER
-            predicted_tokens.append(model_out_text_tokens)  # Token list for BLEU
-            predicted_texts.append(model_out_text)  # Full text for CER and WER
+            expected_texts.append(target_text)
+            predicted_texts.append(model_out_text)
+
+            # Prepare BLEU references and hypotheses
+            expected_bleu_refs.append([target_text])  # Wrap each reference in a list
+            predicted_bleu_hyps.append(model_out_text)
 
             # Print the source, target, and model output
             print_msg('-'*console_width)
@@ -176,22 +175,19 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
                 print_msg('-'*console_width)
                 break
     if writer:
-        # Compute the CER
         cer_metric = torchmetrics.CharErrorRate()
         cer = cer_metric(predicted_texts, expected_texts)
         writer.add_scalar('validation CER', cer, global_step)
 
-        # Compute the WER
         wer_metric = torchmetrics.WordErrorRate()
         wer = wer_metric(predicted_texts, expected_texts)
         writer.add_scalar('validation WER', wer, global_step)
 
-        # Compute the BLEU metric
         bleu_metric = torchmetrics.BLEUScore()
-        bleu = bleu_metric(predicted_tokens, expected_tokens)  # Note: expected_tokens and predicted_tokens are used for BLEU
+        bleu = bleu_metric(predicted_bleu_hyps, expected_bleu_refs)
         writer.add_scalar('validation BLEU', bleu, global_step)
 
-        writer.flush() 
+        writer.flush()
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -272,10 +268,11 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
     count = 0
 
     source_texts = []
-    expected_tokens = []  # To store token lists for BLEU
-    expected_texts = []  # To store full texts for CER and WER
-    predicted_whole_tokens = []  # To store token lists for BLEU, renamed from predicted_tokens
-    predicted_whole_texts = []  # To store full texts for CER and WER, renamed from predicted_texts
+    expected_texts = []  # For CER and WER
+    predicted_texts_whole = []  # For CER and WER, renamed from predicted_texts
+
+    expected_bleu_refs = []  # For BLEU
+    predicted_bleu_whole_hyps = []  # For BLEU
 
     try:
         with os.popen('stty size', 'r') as console:
@@ -297,15 +294,14 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             target_text = batch["tgt_text"][0]
             model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy())
 
-           # Convert texts to token lists for BLEU score calculation
-            target_text_tokens = tokenizer_tgt.encode(target_text).tokens
-            model_out_text_tokens = tokenizer_tgt.encode(model_out_whole_text).tokens
 
             source_texts.append(source_text)
-            expected_tokens.append([target_text_tokens])  # Note: expected is a list of list of tokens for BLEU
-            expected_texts.append(target_text)  # Full text for CER and WER
-            predicted_whole_tokens.append(model_out_text_tokens)  # Token list for BLEU, variable name changed
-            predicted_whole_texts.append(model_out_whole_text)  # Full text for CER and WER, variable name changed
+            expected_texts.append(target_text)
+            predicted_texts_whole.append(model_out_whole_text)  # Use the new variable name
+
+            # Prepare BLEU references and hypotheses
+            expected_bleu_refs.append([target_text])  # Wrap each reference in a list
+            predicted_bleu_whole_hyps.append(model_out_whole_text)
 
             print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
@@ -317,20 +313,17 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
                 break
 
     if writer:
-        # Compute the CER
         cer_metric = torchmetrics.CharErrorRate()
-        cer = cer_metric(predicted_whole_texts, expected_texts)
-        writer.add_scalar('validation CER - future context', cer, global_step)
+        cer = cer_metric(predicted_texts_whole, expected_texts)
+        writer.add_scalar('validation CER', cer, global_step)
 
-        # Compute the WER
         wer_metric = torchmetrics.WordErrorRate()
-        wer = wer_metric(predicted_whole_texts, expected_texts)
-        writer.add_scalar('validation WER - future context', wer, global_step)
+        wer = wer_metric(predicted_texts_whole, expected_texts)
+        writer.add_scalar('validation WER', wer, global_step)
 
-        # Compute the BLEU metric
         bleu_metric = torchmetrics.BLEUScore()
-        bleu = bleu_metric(predicted_whole_tokens, expected_tokens)  # Note: expected_tokens and predicted_whole_tokens are used for BLEU
-        writer.add_scalar('validation BLEU - future context', bleu, global_step)
+        bleu = bleu_metric(predicted_bleu_whole_hyps, expected_bleu_refs)
+        writer.add_scalar('validation BLEU', bleu, global_step)
 
         writer.flush()
 
