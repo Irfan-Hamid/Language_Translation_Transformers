@@ -14,6 +14,7 @@ from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.nist_score import corpus_nist
 from nltk.translate.meteor_score import meteor_score
 from nltk.translate.bleu_score import SmoothingFunction
+import jiwer
 
 nltk.download('wordnet')
 nltk.download('wordnet_ic')
@@ -84,16 +85,33 @@ def calculate_nist(predicted, expected):
     expected_tokens = [[reference.split()] for reference in expected]
 
     # Calculate NIST score
-    nist_score = corpus_nist(expected_tokens, predicted_tokens)
+    try:
+        nist_score = corpus_nist(expected_tokens, predicted_tokens)
+    except ZeroDivisionError:
+        # This can happen if the predicted sentences have no n-grams in common with the reference sentences
+        nist_score = 0.0
 
     return nist_score
 
-def calculate_meteor(predicted, expected):
-    # Calculate METEOR score
-    meteor = [meteor_score([reference], prediction) for reference, prediction in zip(expected, predicted)]
-    meteor_score_avg = sum(meteor) / len(meteor)
+def calculate_wer(predicted, expected):
+    transformation = jiwer.Compose([
+        jiwer.ToLowerCase(),
+        jiwer.RemoveMultipleSpaces(),
+        jiwer.Strip(),
+        jiwer.RemovePunctuation(),
+    ])
+    wer = jiwer.wer(expected, predicted, truth_transform=transformation, hypothesis_transform=transformation)
+    return wer
 
-    return meteor_score_avg
+def calculate_cer(predicted, expected):
+    transformation = jiwer.Compose([
+        jiwer.ToLowerCase(),
+        jiwer.RemoveMultipleSpaces(),
+        jiwer.Strip(),
+        jiwer.RemovePunctuation(),
+    ])
+    cer = jiwer.cer(expected, predicted, truth_transform=transformation, hypothesis_transform=transformation)
+    return cer
 
 def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
     model.eval()
@@ -159,6 +177,20 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         # Compute the BLEU metric
         bleu = calculate_bleu(predicted, expected)
         writer.add_scalar('validation BLEU', bleu, global_step)
+        writer.flush()
+
+        wer_custom = calculate_wer(predicted, expected)
+        writer.add_scalar('validation WER Custom', wer_custom, global_step)
+        writer.flush()
+
+        # Compute the CER
+        cer_custom = calculate_cer(predicted, expected)
+        writer.add_scalar('validation CER Custom', cer_custom, global_step)
+        writer.flush()
+
+        # Compute the NIST score using the custom function
+        nist_score = calculate_nist(predicted, expected)
+        writer.add_scalar('validation NIST', nist_score, global_step)
         writer.flush()
 
         #  # Calculate NIST score
@@ -302,6 +334,20 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         # Compute the BLEU metric
         bleu = calculate_bleu(predicted_whole, expected)
         writer.add_scalar('validation BLEU', bleu, global_step)
+        writer.flush()
+
+        wer_custom = calculate_wer(predicted_whole, expected)
+        writer.add_scalar('validation WER Custom', wer_custom, global_step)
+        writer.flush()
+
+        # Compute the CER
+        cer_custom = calculate_cer(predicted_whole, expected)
+        writer.add_scalar('validation CER Custom', cer_custom, global_step)
+        writer.flush()
+
+        # Compute the NIST score using the custom function
+        nist_score = calculate_nist(predicted_whole, expected)
+        writer.add_scalar('validation NIST', nist_score, global_step)
         writer.flush()
 
         #  # Calculate NIST score
