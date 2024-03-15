@@ -239,6 +239,9 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         # For BLEU Score, wrap each target sentence in a list
         expected_for_bleu = [[exp] for exp in expected]
 
+        expected_for_bleu_custom1 = [exp.split() for exp in expected]
+
+
         # Compute the BLEU metric
         bleu_metric = torchmetrics.BLEUScore()
         bleu = bleu_metric(predicted, expected_for_bleu)  # Note the updated expected list format
@@ -246,7 +249,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         print_msg(f"Validation BLEU: {bleu}")
         writer.flush()
 
-        bleu_custom1 = calculate_bleu_score(predicted, expected_for_bleu)
+        bleu_custom1 = calculate_bleu_score(predicted, expected_for_bleu_custom1)
         writer.add_scalar('validation BLEU', bleu_custom1, global_step)
         print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
         writer.flush()
@@ -391,6 +394,8 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         # For BLEU Score, wrap each target sentence in a list
         expected_for_bleu = [[exp] for exp in expected]
 
+        expected_for_bleu_custom1 = [exp.split() for exp in expected]
+
         # Compute the BLEU metric
         bleu_metric = torchmetrics.BLEUScore()
         bleu = bleu_metric(predicted_whole, expected_for_bleu)  # Note the updated expected list format
@@ -398,7 +403,7 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         print_msg(f"Validation BLEU: {bleu}")
         writer.flush()
 
-        bleu_custom1 = calculate_bleu_score(predicted_whole, expected_for_bleu)
+        bleu_custom1 = calculate_bleu_score(predicted_whole, expected_for_bleu_custom1)
         writer.add_scalar('validation BLEU', bleu_custom1, global_step)
         print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
         writer.flush()
