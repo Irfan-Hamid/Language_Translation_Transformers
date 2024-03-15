@@ -46,7 +46,7 @@ import math
 
 def n_gram_counts(text, n):
     # Generate n-grams from the given text and convert them to tuples
-    return [tuple(text[i:i+n]) for i in range(len(text)-n+1)]
+    return [tuple(word.lower() for word in text[i:i+n]) for i in range(len(text)-n+1)]
 
 def modified_precision(predicted, expected, n):
     predicted_ngrams = n_gram_counts(predicted, n)
