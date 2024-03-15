@@ -180,7 +180,7 @@ def calculate_cer(predicted, expected):
     return cer
 
 
-def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=3):
     model.eval()
     count = 0
 
@@ -218,15 +218,13 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             expected.append(target_text)
             predicted.append(model_out_text)
 
-            # Print the source, target, and model output
-            print_msg('-'*console_width)
-            print_msg(f"{f'SOURCE: ':>12}{source_text}")
-            print_msg(f"{f'TARGET: ':>12}{target_text}")
-            print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
-
-            if count == num_examples:
+            if count <= num_examples:
                 print_msg('-'*console_width)
-                break
+            # Print the source, target, and model output
+                print_msg('-'*console_width)
+                print_msg(f"{f'SOURCE: ':>12}{source_text}")
+                print_msg(f"{f'TARGET: ':>12}{target_text}")
+                print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
     
     if writer:
         # Evaluate the character error rate
@@ -341,7 +339,7 @@ def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source
 
 #     return decoder_input.squeeze(0)
 
-def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=3):
     model_causal_mask.eval()
     model_causal_mask_with_future.eval()
     count = 0
@@ -380,9 +378,13 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             print_msg(f"{f'TARGET: ':>12}{target_text}")
             print_msg(f"{f'PREDICTED: ':>12}{model_out_whole_text}")
 
-            if count == num_examples:
-                print_msg('-' * console_width)
-                break
+            if count <= num_examples:
+                print_msg('-'*console_width)
+            # Print the source, target, and model output
+                print_msg('-'*console_width)
+                print_msg(f"{f'SOURCE: ':>12}{source_text}")
+                print_msg(f"{f'TARGET: ':>12}{target_text}")
+                print_msg(f"{f'PREDICTED: ':>12}{model_out_whole_text}")
         
     if writer:
         # Compute the Character Error Rate (CER)
