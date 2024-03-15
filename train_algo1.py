@@ -231,8 +231,11 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             print_msg(f"PREDICTED: {model_out_text}")
             print_msg(f"BLEU Score: {bleu_score}")
 
+            
             # Log BLEU score to TensorBoard
-            writer.add_scalar('Validation_BLEU_Score', bleu_score, global_step + count)
+            #writer.add_scalar('Validation_BLEU_Score', bleu_score, global_step + count)
+            writer.add_scalar('Validation_BLEU_Score_x100', bleu_score * 100, global_step + count)
+
 
             count += 1
 
