@@ -249,10 +249,10 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         print_msg(f"Validation BLEU: {bleu}")
         writer.flush()
 
-        bleu_custom1 = calculate_bleu_score(predicted, expected_for_bleu_custom1)
-        writer.add_scalar('validation BLEU', bleu_custom1, global_step)
-        print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
-        writer.flush()
+        # bleu_custom1 = calculate_bleu_score(predicted, expected_for_bleu_custom1)
+        # writer.add_scalar('validation BLEU', bleu_custom1, global_step)
+        # print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
+        # writer.flush()
 
         bleu_custom2 = compute_bleu(predicted, expected_for_bleu)
         writer.add_scalar('validation BLEU', bleu_custom2, global_step)
@@ -403,10 +403,10 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         print_msg(f"Validation BLEU: {bleu}")
         writer.flush()
 
-        bleu_custom1 = calculate_bleu_score(predicted_whole, expected_for_bleu_custom1)
-        writer.add_scalar('validation BLEU', bleu_custom1, global_step)
-        print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
-        writer.flush()
+        # bleu_custom1 = calculate_bleu_score(predicted_whole, expected_for_bleu_custom1)
+        # writer.add_scalar('validation BLEU', bleu_custom1, global_step)
+        # print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
+        # writer.flush()
 
         bleu_custom2 = compute_bleu(predicted_whole, expected_for_bleu)
         writer.add_scalar('validation BLEU', bleu_custom2, global_step)
