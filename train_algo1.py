@@ -8,19 +8,19 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim.lr_scheduler import LambdaLR
-import nltk
-import matplotlib.pyplot as plt
-from nltk.translate.bleu_score import corpus_bleu
-from nltk.translate.nist_score import corpus_nist
-from torchmetrics import BLEUScore
-# from nltk.translate.meteor_score import meteor_score
-from nltk.translate.bleu_score import SmoothingFunction
-import jiwer
-from torchmetrics.functional import char_error_rate, word_error_rate
 
+# import nltk
+# import matplotlib.pyplot as plt
+# from nltk.translate.bleu_score import corpus_bleu
+# from nltk.translate.nist_score import corpus_nist
+# from torchmetrics import BLEUScore
+# # from nltk.translate.meteor_score import meteor_score
+# from nltk.translate.bleu_score import SmoothingFunction
+# import jiwer
+# from torchmetrics.functional import char_error_rate, word_error_rate
 
-nltk.download('wordnet')
-nltk.download('wordnet_ic')
+# nltk.download('wordnet')
+# nltk.download('wordnet_ic')
 
 import warnings
 from tqdm import tqdm
@@ -127,10 +127,9 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     model.eval()
     count = 0
 
-    bleu_metric = BLEUScore()
-
-    all_predicted_texts = []  # For CER and WER
-    all_expected_texts = []  # For CER and WER
+    source_texts = []
+    expected = []
+    predicted = []
 
     try:
         # get the console window width
@@ -158,12 +157,9 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
-            # Update BLEU score metric
-            bleu_metric.update(model_out_text, [target_text])
-
-            # For CER and WER calculations
-            all_predicted_texts.append(model_out_text)
-            all_expected_texts.append(target_text)
+            source_texts.append(source_text)
+            expected.append(target_text)
+            predicted.append(model_out_text)
 
             # Print the source, target, and model output
             print_msg('-'*console_width)
@@ -174,22 +170,32 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             if count == num_examples:
                 print_msg('-'*console_width)
                 break
+    
+    if writer:
+        # Evaluate the character error rate
+        # Compute the char error rate 
+        metric = torchmetrics.CharErrorRate()
+        cer = metric(predicted, expected)
+        writer.add_scalar('validation cer', cer, global_step)
+        print_msg(f"Validation CER: {cer}")
+        writer.flush()
 
-         # Calculate BLEU score
-        bleu = bleu_metric.compute()
+        # Compute the word error rate
+        metric = torchmetrics.WordErrorRate()
+        wer = metric(predicted, expected)
+        writer.add_scalar('validation wer', wer, global_step)
+        print_msg(f"Validation WER: {wer}")
+        writer.flush()
 
-        # Calculate CER and WER
-        cer = char_error_rate(all_predicted_texts, all_expected_texts)
-        wer = word_error_rate(all_predicted_texts, all_expected_texts)
+        # For BLEU Score, wrap each target sentence in a list
+        expected_for_bleu = [[exp] for exp in expected]
 
-        if writer:
-            writer.add_scalar('Validation/BLEU', bleu, global_step)
-            writer.add_scalar('Validation/CER', cer, global_step)
-            writer.add_scalar('Validation/WER', wer, global_step)
-            writer.flush()
-
-        print_msg(f"Validation Metrics - BLEU: {bleu}, CER: {cer}, WER: {wer}")
-
+        # Compute the BLEU metric
+        bleu_metric = torchmetrics.BLEUScore()
+        bleu = bleu_metric(predicted, expected_for_bleu)  # Note the updated expected list format
+        writer.add_scalar('validation BLEU', bleu, global_step)
+        print_msg(f"Validation BLEU: {bleu}")
+        writer.flush()
        
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
@@ -270,10 +276,9 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
     model_causal_mask_with_future.eval()
     count = 0
 
-    bleu_metric = BLEUScore()
-
-    all_predicted_texts_whole = []  # For CER and WER
-    all_expected_texts = []  # For CER and WER
+    source_texts = []
+    expected = []
+    predicted_whole = []
 
     try:
         with os.popen('stty size', 'r') as console:
@@ -295,36 +300,43 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             target_text = batch["tgt_text"][0]
             model_out_whole_text = tokenizer_tgt.decode(model_out_whole.detach().cpu().numpy())
 
-            # Update BLEU score metric
-            bleu_metric.update(model_out_whole_text, [target_text])
+            source_texts.append(source_text)
+            expected.append(target_text)
+            predicted_whole.append(model_out_whole_text)
 
-            # For CER and WER calculations
-            all_predicted_texts_whole.append(model_out_whole_text)
-            all_expected_texts.append(target_text)
-            
-
-            print_msg('-'*console_width)
+            # Print the source, target, and model output
+            print_msg('-' * console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
             print_msg(f"{f'TARGET: ':>12}{target_text}")
-            print_msg(f"{f'PREDICTED WHOLE: ':>12}{model_out_whole_text}")
+            print_msg(f"{f'PREDICTED: ':>12}{model_out_whole_text}")
 
             if count == num_examples:
-                print_msg('-'*console_width)
+                print_msg('-' * console_width)
                 break
         
-        # Calculate BLEU score
-        bleu = bleu_metric.compute()
+    if writer:
+        # Compute the Character Error Rate (CER)
+        cer_metric = torchmetrics.CharErrorRate()
+        cer = cer_metric(predicted_whole, expected)
+        writer.add_scalar('validation CER', cer, global_step)
+        print_msg(f"Validation CER: {cer}")
 
-        cer = char_error_rate(all_predicted_texts_whole, all_expected_texts)
-        wer = word_error_rate(all_predicted_texts_whole, all_expected_texts) 
+        # Compute the Word Error Rate (WER)
+        wer_metric = torchmetrics.WordErrorRate()
+        wer = wer_metric(predicted_whole, expected)
+        writer.add_scalar('validation WER', wer, global_step)
+        print_msg(f"Validation WER: {wer}")
 
-        if writer:
-            writer.add_scalar('Validation/BLEU', bleu, global_step)
-            writer.add_scalar('Validation/CER', cer, global_step)
-            writer.add_scalar('Validation/WER', wer, global_step)
-            writer.flush()
+        # For BLEU Score, wrap each target sentence in a list
+        expected_for_bleu = [[exp] for exp in expected]
 
-        print_msg(f"Validation Metrics - BLEU: {bleu}, CER: {cer}, WER: {wer}")
+        # Compute the BLEU metric
+        bleu_metric = torchmetrics.BLEUScore()
+        bleu = bleu_metric(predicted_whole, expected_for_bleu)  # Note the updated expected list format
+        writer.add_scalar('validation BLEU', bleu, global_step)
+        print_msg(f"Validation BLEU: {bleu}")
+
+        writer.flush()
 
 def get_all_sentences(ds, lang):
     for item in ds:
