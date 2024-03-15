@@ -181,13 +181,16 @@ def calculate_cer(predicted, expected):
     return cer
 
 
-def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=3):
+def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer):
     model.eval()
-    count = 0
 
     source_texts = []
     expected = []
     predicted = []
+
+    # Indices of examples to print - first, middle, and last
+    indices_to_print = [0, len(validation_ds) // 2, len(validation_ds) - 1]
+    counter = 0  # Manual counter to keep track of the current index
 
     try:
         # get the console window width
@@ -200,7 +203,6 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
 
     with torch.no_grad():
         for batch in validation_ds:
-            count += 1
             encoder_input = batch["encoder_input"].to(device) # (b, seq_len)
             encoder_mask = batch["encoder_mask"].to(device) # (b, 1, 1, seq_len)
 
@@ -219,16 +221,16 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             expected.append(target_text)
             predicted.append(model_out_text)
 
-            # Print the source, target, and model output
-            print_msg('-'*console_width)
-            print_msg(f"{f'SOURCE: ':>12}{source_text}")
-            print_msg(f"{f'TARGET: ':>12}{target_text}")
-            print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
+            if counter in indices_to_print:
+                print_msg('-' * console_width)
+                print_msg(f"Validation Example {counter + 1}")
+                print_msg(f"{f'SOURCE: ':>12}{source_text}")
+                print_msg(f"{f'TARGET: ':>12}{target_text}")
+                print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
+                print_msg('-' * console_width)
 
-            if count == num_examples:
-                print_msg('-'*console_width)
-                break
-    
+            counter += 1  # Increment the manual counter
+
     if writer:
         # Evaluate the character error rate
         # Compute the char error rate 
@@ -342,14 +344,17 @@ def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source
 
 #     return decoder_input.squeeze(0)
 
-def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=3):
+def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer):
     model_causal_mask.eval()
     model_causal_mask_with_future.eval()
-    count = 0
 
     source_texts = []
     expected = []
     predicted_whole = []
+
+    # Hard-coded indices of examples to print
+    indices_to_print = [0, len(validation_ds) // 2, len(validation_ds) - 1]
+    counter = 0  # Manual counter to keep track of the current index
 
     try:
         with os.popen('stty size', 'r') as console:
@@ -360,7 +365,7 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
 
     with torch.no_grad():
         for batch in validation_ds:
-            count += 1
+            
             encoder_input = batch["encoder_input"].to(device)
             encoder_mask = batch["encoder_mask"].to(device)
             assert encoder_input.size(0) == 1, "Batch size must be 1 for validation"
@@ -375,15 +380,16 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             expected.append(target_text)
             predicted_whole.append(model_out_whole_text)
 
-            # Print the source, target, and model output
-            print_msg('-'*console_width)
-            print_msg(f"{f'SOURCE: ':>12}{source_text}")
-            print_msg(f"{f'TARGET: ':>12}{target_text}")
-            print_msg(f"{f'PREDICTED: ':>12}{model_out_whole_text}")
+            # Print details for specific indices using the counter
+            if counter in indices_to_print:
+                print_msg('-' * console_width)
+                print_msg(f"Validation Example {counter + 1}")
+                print_msg(f"{f'SOURCE: ':>12}{source_text}")
+                print_msg(f"{f'TARGET: ':>12}{target_text}")
+                print_msg(f"{f'PREDICTED: ':>12}{model_out_whole_text}")
+                print_msg('-' * console_width)
 
-            if count == num_examples:
-                print_msg('-'*console_width)
-                break
+            counter += 1  # Increment the manual counter
         
     if writer:
         # Compute the Character Error Rate (CER)
@@ -479,7 +485,7 @@ def get_model(config, vocab_src_len, vocab_tgt_len):
     model = build_transformer(vocab_src_len, vocab_tgt_len, config["seq_len"], config['seq_len'], d_model=config['d_model'])
     return model
 
-def train_model_causal_mask(config,current_epoch, model, device):
+def train_model_causal_mask(config,current_epoch, model, device, num_epochs):
     config['experiment_name'] = "runs/tmodel_causal_mask"  # Unique experiment name for this model
     # Define the device
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.has_mps or torch.backends.mps.is_available() else "cpu"
@@ -576,10 +582,11 @@ def train_model_causal_mask(config,current_epoch, model, device):
 
     average_loss = total_loss / num_batches  # Compute average loss    
 
-        # # Run validation at the end of every epoch using the whole training approach
-    run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
-        # validate_train_model_whole(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
 
+    if epoch == num_epochs - 1:
+        # # Run validation at the end of every epoch using the whole training approach
+        run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+        # validate_train_model_whole(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Save the model at the end of every epoch, indicating it's been trained with both causal masks
     model_filename = get_weights_file_path(config, f"causal_mask_epoch_{epoch:02d}")
     torch.save({
@@ -591,7 +598,7 @@ def train_model_causal_mask(config,current_epoch, model, device):
 
     return model, average_loss 
 
-def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask, model_causal_mask_with_future, device):
+def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask, model_causal_mask_with_future, device, num_epochs):
     config['experiment_name'] = "runs/tmodel_causal_mask_with_future"  # Unique experiment name for this model
     # Define the device
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -672,9 +679,9 @@ def train_model_causal_mask_with_future(config, current_epoch, model_causal_mask
         global_step += 1
 
     average_loss = total_loss / num_batches  # Compute average loss    
-
+    if epoch == num_epochs - 1:
         # Run validation after training for all epochs
-    validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+        validate_train_model_whole(model_causal_mask, model_causal_mask_with_future, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Save the model after training for all epochs
     model_filename = get_weights_file_path(config, f"causal_mask_with_future_epoch_{epoch:02d}")
     torch.save({
@@ -707,12 +714,12 @@ def alternate_training(config, num_epochs):
 
         # Train one epoch with causal mask
         print(f"Training epoch {epoch+1} with causal mask")
-        model_causal_mask, loss_causal_mask = train_model_causal_mask(config, epoch, model_causal_mask, device )
+        model_causal_mask, loss_causal_mask = train_model_causal_mask(config, epoch, model_causal_mask, device,num_epochs )
         losses_causal_mask.append(loss_causal_mask)
 
         # Train one epoch with causal mask and future context
         print(f"Training epoch {epoch+1} with causal mask and future context")
-        model_causal_mask_with_future, loss_causal_mask_with_future = train_model_causal_mask_with_future(config, epoch, model_causal_mask, model_causal_mask_with_future, device)
+        model_causal_mask_with_future, loss_causal_mask_with_future = train_model_causal_mask_with_future(config, epoch, model_causal_mask, model_causal_mask_with_future, device,num_epochs)
         losses_causal_mask_with_future.append(loss_causal_mask_with_future)
 
         print(f"Completed Epoch {epoch+1}/{num_epochs}")
