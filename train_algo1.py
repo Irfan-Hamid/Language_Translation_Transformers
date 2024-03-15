@@ -13,8 +13,12 @@ import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.nist_score import corpus_nist
 # from nltk.translate.meteor_score import meteor_score
-from nltk.translate.bleu_score import SmoothingFunction
+from nltk.translate.bleu_score import SmoothingFunction,sentence_bleu
+from torch.utils.tensorboard import SummaryWriter
+nltk.download('punkt')
 import jiwer
+
+
 
 nltk.download('wordnet')
 nltk.download('wordnet_ic')
@@ -120,27 +124,88 @@ def calculate_cer(predicted, expected):
     return cer
 
 
+# def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+#     model.eval()
+#     count = 0
+
+#     source_texts = []
+#     expected_texts = []  # For CER and WER
+#     predicted_texts = []  # For BLEU
+
+#     expected_bleu_refs = []  # For BLEU
+#     predicted_bleu_hyps = []  # For BLEU
+
+#     try:
+#         with os.popen('stty size', 'r') as console:
+#             _, console_width = console.read().split()
+#             console_width = int(console_width)
+#     except:
+#         console_width = 80
+
+#     with torch.no_grad():
+#         for batch in validation_ds:
+#             count += 1
+#             encoder_input = batch["encoder_input"].to(device)
+#             encoder_mask = batch["encoder_mask"].to(device)
+
+#             assert encoder_input.size(0) == 1, "Batch size must be 1 for validation"
+
+#             model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_tgt, max_len, device)
+
+#             source_text = batch["src_text"][0]
+#             target_text = batch["tgt_text"][0]
+#             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True)
+
+#             # Debugging: Print the model output ids to ensure they're sensible
+#             print_msg(f"Model output IDs: {model_out.detach().cpu().numpy()}")
+#             print_msg(f"Model output text: {model_out_text}")
+#             print_msg(f"Target text: {target_text}")
+
+#             source_texts.append(source_text)
+#             expected_texts.append(target_text)
+#             predicted_texts.append(model_out_text)
+
+#             expected_bleu_refs.append([target_text.split()])  # Tokenize reference text
+#             predicted_bleu_hyps.append(model_out_text.split())  # Tokenize predicted text
+
+#             print_msg('-'*console_width)
+#             print_msg(f"{f'SOURCE: ':>12}{source_text}")
+#             print_msg(f"{f'TARGET: ':>12}{target_text}")
+#             print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
+
+#             if count == num_examples:
+#                 print_msg('-'*console_width)
+#                 break
+
+#     if writer:
+#         cer_metric = torchmetrics.CharErrorRate()
+#         cer = cer_metric(predicted_texts, expected_texts)
+#         writer.add_scalar('validation CER', cer, global_step)
+
+#         wer_metric = torchmetrics.WordErrorRate()
+#         wer = wer_metric(predicted_texts, expected_texts)
+#         writer.add_scalar('validation WER', wer, global_step)
+
+#         # Ensure tokenization of references and hypotheses for BLEU calculation
+#         bleu_metric = torchmetrics.BLEUScore()
+#         bleu = bleu_metric(predicted_bleu_hyps, expected_bleu_refs)
+#         writer.add_scalar('validation BLEU', bleu, global_step)
+
+#         writer.flush()
+
+
 def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
     model.eval()
     count = 0
 
-    source_texts = []
-    expected_texts = []  # For CER and WER
-    predicted_texts = []  # For BLEU
-
-    expected_bleu_refs = []  # For BLEU
-    predicted_bleu_hyps = []  # For BLEU
-
-    try:
-        with os.popen('stty size', 'r') as console:
-            _, console_width = console.read().split()
-            console_width = int(console_width)
-    except:
-        console_width = 80
+    # Initialize BLEU score calculation details
+    chencherry = SmoothingFunction()
 
     with torch.no_grad():
         for batch in validation_ds:
-            count += 1
+            if count >= num_examples:
+                break
+
             encoder_input = batch["encoder_input"].to(device)
             encoder_mask = batch["encoder_mask"].to(device)
 
@@ -152,44 +217,26 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True)
 
-            # Debugging: Print the model output ids to ensure they're sensible
-            print_msg(f"Model output IDs: {model_out.detach().cpu().numpy()}")
-            print_msg(f"Model output text: {model_out_text}")
-            print_msg(f"Target text: {target_text}")
+            # Tokenize texts for BLEU calculation
+            reference_tokens = [nltk.word_tokenize(target_text)]
+            candidate_tokens = nltk.word_tokenize(model_out_text)
 
-            source_texts.append(source_text)
-            expected_texts.append(target_text)
-            predicted_texts.append(model_out_text)
+            # Calculate BLEU score
+            bleu_score = sentence_bleu(reference_tokens, candidate_tokens, smoothing_function=chencherry.method1)
 
-            #expected_bleu_refs.append([target_text.split()])  # Tokenize reference text
-            #predicted_bleu_hyps.append(model_out_text.split())  # Tokenize predicted text
-            expected_bleu_refs.append([target_text])  
-            predicted_bleu_hyps.append(model_out_text)
+            # Log information
+            print_msg('-'*80)
+            print_msg(f"SOURCE: {source_text}")
+            print_msg(f"TARGET: {target_text}")
+            print_msg(f"PREDICTED: {model_out_text}")
+            print_msg(f"BLEU Score: {bleu_score}")
 
-            print_msg('-'*console_width)
-            print_msg(f"{f'SOURCE: ':>12}{source_text}")
-            print_msg(f"{f'TARGET: ':>12}{target_text}")
-            print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
+            # Log BLEU score to TensorBoard
+            writer.add_scalar('Validation_BLEU_Score', bleu_score, global_step + count)
 
-            if count == num_examples:
-                print_msg('-'*console_width)
-                break
+            count += 1
 
-    if writer:
-        cer_metric = torchmetrics.CharErrorRate()
-        cer = cer_metric(predicted_texts, expected_texts)
-        writer.add_scalar('validation CER', cer, global_step)
-
-        wer_metric = torchmetrics.WordErrorRate()
-        wer = wer_metric(predicted_texts, expected_texts)
-        writer.add_scalar('validation WER', wer, global_step)
-
-        # Ensure tokenization of references and hypotheses for BLEU calculation
-        bleu_metric = torchmetrics.BLEUScore()
-        bleu = bleu_metric(predicted_bleu_hyps, expected_bleu_refs)
-        writer.add_scalar('validation BLEU', bleu, global_step)
-
-        writer.flush()
+    writer.flush()
 
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
