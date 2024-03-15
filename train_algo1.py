@@ -41,44 +41,52 @@ from torch.utils.tensorboard import SummaryWriter
 import collections
 import math
 
-def compute_ngrams(tokens, n):
-    """Compute n-grams for a given list of tokens."""
-    ngrams = collections.Counter(tuple(tokens[i:i+n]) for i in range(len(tokens) - n + 1))
-    return ngrams
+import math
 
-def compute_precision(candidate_ngrams, reference_ngrams):
-    """Compute precision given candidate and reference n-grams."""
-    clipped_counts = {ngram: min(count, reference_ngrams[ngram]) for ngram, count in candidate_ngrams.items()}
-    precision = sum(clipped_counts.values()) / max(1, sum(candidate_ngrams.values()))
-    return precision
+def n_gram_counts(text, n):
+    # Generate n-grams from the given text and convert them to tuples
+    return [tuple(text[i:i+n]) for i in range(len(text)-n+1)]
 
-def compute_bleu(candidate_corpus, reference_corpus, max_n=4):
-    """Compute BLEU score for a given candidate corpus and reference corpus."""
-    total_precision = 0.0
-    total_length = 0
+def modified_precision(predicted, expected, n):
+    predicted_ngrams = n_gram_counts(predicted, n)
+    expected_ngrams = n_gram_counts(expected, n)
+    expected_ngrams_count = {ngram: expected_ngrams.count(ngram) for ngram in set(expected_ngrams)}
+    
+    match_count = 0
+    for ngram in predicted_ngrams:
+        if ngram in expected_ngrams_count and expected_ngrams_count[ngram] > 0:
+            match_count += 1
+            expected_ngrams_count[ngram] -= 1
+            
+    return match_count / len(predicted_ngrams) if predicted_ngrams else 0
 
-    for candidate_tokens, reference_tokens_list in zip(candidate_corpus, reference_corpus):
-        candidate_length = len(candidate_tokens)
-        reference_lengths = [len(reference_tokens) for reference_tokens in reference_tokens_list]
+def brevity_penalty(predicted, expected):
+    predicted_length = len(predicted)
+    expected_length = len(expected)
+    if predicted_length > expected_length:
+        return 1
+    else:
+        return math.exp(1 - expected_length / predicted_length) if predicted_length else 0
 
-        closest_length = min(reference_lengths, key=lambda x: abs(candidate_length - x))
-        total_length += closest_length
+def calculate_bleu(predicted_whole, expected, n_gram=4):
+    weights = [1.0 / n_gram] * n_gram  # Equal weights for all n-grams
+    bp = brevity_penalty(' '.join(predicted_whole), ' '.join(expected))
 
-        candidate_ngrams = {}
-        reference_ngrams = {}
+    p_ns = []
+    for predicted, exp in zip(predicted_whole, expected):
+        p_n = [modified_precision(predicted.split(), exp.split(), i+1) for i in range(n_gram)]
+        p_ns.append(p_n)
+    
+    # Calculate geometric mean of the precisions for each sentence and then average them
+    bleu_scores = []
+    for p_n in p_ns:
+        s = [w_i * math.log(p_i) for w_i, p_i in zip(weights, p_n) if p_i]
+        if s:  # Check to avoid math domain error if s is empty
+            bleu_score = bp * math.exp(sum(s))
+            bleu_scores.append(bleu_score)
 
-        for n in range(1, max_n + 1):
-            candidate_ngrams.update(compute_ngrams(candidate_tokens, n))
-            reference_ngrams.update(compute_ngrams(reference_tokens, n) for reference_tokens in reference_tokens_list)
-
-            precision = compute_precision(candidate_ngrams, reference_ngrams)
-            total_precision += precision
-
-    brevity_penalty = min(1, math.exp(1 - total_length / len(candidate_corpus)))
-    bleu_score = brevity_penalty * math.exp(total_precision / max_n)
-
-    return bleu_score
-
+    # Return the average BLEU score across all the sentences
+    return sum(bleu_scores) / len(bleu_scores) if bleu_scores else 0
 
 def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -254,9 +262,9 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         # print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
         # writer.flush()
 
-        bleu_custom2 = compute_bleu(predicted, expected_for_bleu)
-        writer.add_scalar('validation BLEU', bleu_custom2, global_step)
-        print_msg(f"Validation BLEU: {bleu_custom2}")
+        bleu_custom2 = calculate_bleu(predicted, expected)
+        writer.add_scalar('validation BLEU-custom', bleu_custom2, global_step)
+        print_msg(f"Validation BLEU-custom: {bleu_custom2}")
         writer.flush()
         
        
@@ -408,9 +416,9 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         # print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
         # writer.flush()
 
-        bleu_custom2 = compute_bleu(predicted_whole, expected_for_bleu)
-        writer.add_scalar('validation BLEU', bleu_custom2, global_step)
-        print_msg(f"Validation BLEU: {bleu_custom2}")
+        bleu_custom2 = calculate_bleu(predicted_whole, expected)
+        writer.add_scalar('validation BLEU-custom', bleu_custom2, global_step)
+        print_msg(f"Validation BLEU-custom: {bleu_custom2}")
         writer.flush()
         
 
