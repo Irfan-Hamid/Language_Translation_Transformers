@@ -17,6 +17,7 @@ from torchmetrics import BLEUScore
 # from nltk.translate.meteor_score import meteor_score
 from nltk.translate.bleu_score import SmoothingFunction
 import jiwer
+import jiwer
 from torchmetrics.functional import char_error_rate, word_error_rate
 
 nltk.download('wordnet')
@@ -218,13 +219,15 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             expected.append(target_text)
             predicted.append(model_out_text)
 
-            if count <= num_examples:
-                print_msg('-'*console_width)
             # Print the source, target, and model output
+            print_msg('-'*console_width)
+            print_msg(f"{f'SOURCE: ':>12}{source_text}")
+            print_msg(f"{f'TARGET: ':>12}{target_text}")
+            print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
+
+            if count == num_examples:
                 print_msg('-'*console_width)
-                print_msg(f"{f'SOURCE: ':>12}{source_text}")
-                print_msg(f"{f'TARGET: ':>12}{target_text}")
-                print_msg(f"{f'PREDICTED: ':>12}{model_out_text}")
+                break
     
     if writer:
         # Evaluate the character error rate
@@ -243,17 +246,17 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.flush()
 
         # For BLEU Score, wrap each target sentence in a list
-        expected_for_bleu = [[exp] for exp in expected]
+        # expected_for_bleu = [[exp] for exp in expected]
 
-        expected_for_bleu_custom1 = [exp.split() for exp in expected]
+        # expected_for_bleu_custom1 = [exp.split() for exp in expected]
 
 
-        # Compute the BLEU metric
-        bleu_metric = torchmetrics.BLEUScore()
-        bleu = bleu_metric(predicted, expected_for_bleu)  # Note the updated expected list format
-        writer.add_scalar('validation BLEU', bleu, global_step)
-        print_msg(f"Validation BLEU: {bleu}")
-        writer.flush()
+        # # Compute the BLEU metric
+        # bleu_metric = torchmetrics.BLEUScore()
+        # bleu = bleu_metric(predicted, expected_for_bleu)  # Note the updated expected list format
+        # writer.add_scalar('validation BLEU', bleu, global_step)
+        # print_msg(f"Validation BLEU: {bleu}")
+        # writer.flush()
 
         # bleu_custom1 = calculate_bleu_score(predicted, expected_for_bleu_custom1)
         # writer.add_scalar('validation BLEU', bleu_custom1, global_step)
@@ -261,8 +264,8 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         # writer.flush()
 
         bleu_custom2 = calculate_bleu(predicted, expected)
-        writer.add_scalar('validation BLEU-custom', bleu_custom2, global_step)
-        print_msg(f"Validation BLEU-custom: {bleu_custom2}")
+        writer.add_scalar('validation BLEU', bleu_custom2, global_step)
+        print_msg(f"Validation BLEU: {bleu_custom2}")
         writer.flush()
         
        
@@ -373,18 +376,14 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
             predicted_whole.append(model_out_whole_text)
 
             # Print the source, target, and model output
-            print_msg('-' * console_width)
+            print_msg('-'*console_width)
             print_msg(f"{f'SOURCE: ':>12}{source_text}")
             print_msg(f"{f'TARGET: ':>12}{target_text}")
             print_msg(f"{f'PREDICTED: ':>12}{model_out_whole_text}")
 
-            if count <= num_examples:
+            if count == num_examples:
                 print_msg('-'*console_width)
-            # Print the source, target, and model output
-                print_msg('-'*console_width)
-                print_msg(f"{f'SOURCE: ':>12}{source_text}")
-                print_msg(f"{f'TARGET: ':>12}{target_text}")
-                print_msg(f"{f'PREDICTED: ':>12}{model_out_whole_text}")
+                break
         
     if writer:
         # Compute the Character Error Rate (CER)
@@ -401,17 +400,17 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         print_msg(f"Validation WER: {wer}")
         writer.flush()
 
-        # For BLEU Score, wrap each target sentence in a list
-        expected_for_bleu = [[exp] for exp in expected]
+        # # For BLEU Score, wrap each target sentence in a list
+        # expected_for_bleu = [[exp] for exp in expected]
 
-        expected_for_bleu_custom1 = [exp.split() for exp in expected]
+        # expected_for_bleu_custom1 = [exp.split() for exp in expected]
 
-        # Compute the BLEU metric
-        bleu_metric = torchmetrics.BLEUScore()
-        bleu = bleu_metric(predicted_whole, expected_for_bleu)  # Note the updated expected list format
-        writer.add_scalar('validation BLEU', bleu, global_step)
-        print_msg(f"Validation BLEU: {bleu}")
-        writer.flush()
+        # # Compute the BLEU metric
+        # bleu_metric = torchmetrics.BLEUScore()
+        # bleu = bleu_metric(predicted_whole, expected_for_bleu)  # Note the updated expected list format
+        # writer.add_scalar('validation BLEU', bleu, global_step)
+        # print_msg(f"Validation BLEU: {bleu}")
+        # writer.flush()
 
         # bleu_custom1 = calculate_bleu_score(predicted_whole, expected_for_bleu_custom1)
         # writer.add_scalar('validation BLEU', bleu_custom1, global_step)
@@ -419,8 +418,8 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         # writer.flush()
 
         bleu_custom2 = calculate_bleu(predicted_whole, expected)
-        writer.add_scalar('validation BLEU-custom', bleu_custom2, global_step)
-        print_msg(f"Validation BLEU-custom: {bleu_custom2}")
+        writer.add_scalar('validation BLEU', bleu_custom2, global_step)
+        print_msg(f"Validation BLEU: {bleu_custom2}")
         writer.flush()
         
 
