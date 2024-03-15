@@ -9,18 +9,19 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim.lr_scheduler import LambdaLR
 
-# import nltk
-# import matplotlib.pyplot as plt
-# from nltk.translate.bleu_score import corpus_bleu
-# from nltk.translate.nist_score import corpus_nist
-# from torchmetrics import BLEUScore
-# # from nltk.translate.meteor_score import meteor_score
-# from nltk.translate.bleu_score import SmoothingFunction
-# import jiwer
-# from torchmetrics.functional import char_error_rate, word_error_rate
+import nltk
+import matplotlib.pyplot as plt
+from nltk.translate.bleu_score import corpus_bleu
+from nltk.translate.nist_score import corpus_nist
+from torchmetrics import BLEUScore
+# from nltk.translate.meteor_score import meteor_score
+from nltk.translate.bleu_score import SmoothingFunction
+import jiwer
+from torchmetrics.functional import char_error_rate, word_error_rate
 
-# nltk.download('wordnet')
-# nltk.download('wordnet_ic')
+nltk.download('wordnet')
+nltk.download('wordnet_ic')
+nltk.download('punkt')
 
 import warnings
 from tqdm import tqdm
@@ -36,6 +37,47 @@ from tokenizers.pre_tokenizers import Whitespace
 
 import torchmetrics
 from torch.utils.tensorboard import SummaryWriter
+
+import collections
+import math
+
+def compute_ngrams(tokens, n):
+    """Compute n-grams for a given list of tokens."""
+    ngrams = collections.Counter(tuple(tokens[i:i+n]) for i in range(len(tokens) - n + 1))
+    return ngrams
+
+def compute_precision(candidate_ngrams, reference_ngrams):
+    """Compute precision given candidate and reference n-grams."""
+    clipped_counts = {ngram: min(count, reference_ngrams[ngram]) for ngram, count in candidate_ngrams.items()}
+    precision = sum(clipped_counts.values()) / max(1, sum(candidate_ngrams.values()))
+    return precision
+
+def compute_bleu(candidate_corpus, reference_corpus, max_n=4):
+    """Compute BLEU score for a given candidate corpus and reference corpus."""
+    total_precision = 0.0
+    total_length = 0
+
+    for candidate_tokens, reference_tokens_list in zip(candidate_corpus, reference_corpus):
+        candidate_length = len(candidate_tokens)
+        reference_lengths = [len(reference_tokens) for reference_tokens in reference_tokens_list]
+
+        closest_length = min(reference_lengths, key=lambda x: abs(candidate_length - x))
+        total_length += closest_length
+
+        candidate_ngrams = {}
+        reference_ngrams = {}
+
+        for n in range(1, max_n + 1):
+            candidate_ngrams.update(compute_ngrams(candidate_tokens, n))
+            reference_ngrams.update(compute_ngrams(reference_tokens, n) for reference_tokens in reference_tokens_list)
+
+            precision = compute_precision(candidate_ngrams, reference_ngrams)
+            total_precision += precision
+
+    brevity_penalty = min(1, math.exp(1 - total_length / len(candidate_corpus)))
+    bleu_score = brevity_penalty * math.exp(total_precision / max_n)
+
+    return bleu_score
 
 
 def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
@@ -69,17 +111,24 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
 
     return decoder_input.squeeze(0)
 
-def calculate_bleu(predicted, expected):
-    # Convert the predicted and expected sequences into a list of lists of tokens
-    predicted_tokens = [prediction.split() for prediction in predicted]
-    expected_tokens = [[reference.split()] for reference in expected]
+def calculate_bleu_score(candidate_corpus, reference_corpus):
+    """
+    Calculate BLEU score given a candidate corpus and a reference corpus.
 
-    # Create a smoothing function
-    chencherry = SmoothingFunction()
+    Args:
+    candidate_corpus (list): List of strings, each string being a candidate translation.
+    reference_corpus (list): List of lists, where each sublist contains reference translations for a single sentence.
 
-    # Calculate BLEU score with smoothing
-    bleu_score = corpus_bleu(expected_tokens, predicted_tokens, smoothing_function=chencherry.method1)
+    Returns:
+    float: BLEU score.
+    """
+    candidate_corpus_tokenized = [nltk.tokenize.word_tokenize(sent.lower()) for sent in candidate_corpus]
+    reference_corpus_tokenized = [[nltk.tokenize.word_tokenize(sent.lower())] for sent in reference_corpus]
 
+    # Calculate BLEU score
+    smoothing_function = nltk.translate.bleu_score.SmoothingFunction().method4
+    bleu_score = nltk.translate.bleu_score.corpus_bleu(reference_corpus_tokenized, candidate_corpus_tokenized, smoothing_function=smoothing_function)
+    
     return bleu_score
 
 def calculate_nist(predicted, expected):
@@ -196,8 +245,18 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.add_scalar('validation BLEU', bleu, global_step)
         print_msg(f"Validation BLEU: {bleu}")
         writer.flush()
-       
 
+        bleu_custom1 = calculate_bleu_score(predicted, expected_for_bleu)
+        writer.add_scalar('validation BLEU', bleu_custom1, global_step)
+        print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
+        writer.flush()
+
+        bleu_custom2 = compute_bleu(predicted, expected_for_bleu)
+        writer.add_scalar('validation BLEU', bleu_custom2, global_step)
+        print_msg(f"Validation BLEU: {bleu_custom2}")
+        writer.flush()
+        
+       
 def greedy_decode_whole(model_causal_mask, model_causal_mask_with_future, source, source_mask, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
     eos_idx = tokenizer_tgt.token_to_id('[EOS]')
@@ -320,12 +379,14 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         cer = cer_metric(predicted_whole, expected)
         writer.add_scalar('validation CER', cer, global_step)
         print_msg(f"Validation CER: {cer}")
+        writer.flush()
 
         # Compute the Word Error Rate (WER)
         wer_metric = torchmetrics.WordErrorRate()
         wer = wer_metric(predicted_whole, expected)
         writer.add_scalar('validation WER', wer, global_step)
         print_msg(f"Validation WER: {wer}")
+        writer.flush()
 
         # For BLEU Score, wrap each target sentence in a list
         expected_for_bleu = [[exp] for exp in expected]
@@ -335,8 +396,18 @@ def validate_train_model_whole(model_causal_mask, model_causal_mask_with_future,
         bleu = bleu_metric(predicted_whole, expected_for_bleu)  # Note the updated expected list format
         writer.add_scalar('validation BLEU', bleu, global_step)
         print_msg(f"Validation BLEU: {bleu}")
-
         writer.flush()
+
+        bleu_custom1 = calculate_bleu_score(predicted_whole, expected_for_bleu)
+        writer.add_scalar('validation BLEU', bleu_custom1, global_step)
+        print_msg(f"Validation BLEU-custom1: {bleu_custom1}")
+        writer.flush()
+
+        bleu_custom2 = compute_bleu(predicted_whole, expected_for_bleu)
+        writer.add_scalar('validation BLEU', bleu_custom2, global_step)
+        print_msg(f"Validation BLEU: {bleu_custom2}")
+        writer.flush()
+        
 
 def get_all_sentences(ds, lang):
     for item in ds:
